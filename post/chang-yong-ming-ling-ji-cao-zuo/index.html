@@ -1,0 +1,234 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>常用命令及操作 | Gridea</title>
+<link rel="shortcut icon" href="https://MouseHappy123.github.io/favicon.ico?v=1685983394252">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://MouseHappy123.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="常用命令及操作 | Gridea - Atom Feed" href="https://MouseHappy123.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="mac
+command+r 刷新
+command+y 浏览器历史
+command + shift + 4（+ctrl） 部分截图（并复制）
+shift + command + 左右箭头 选择行文字
+option + 左右 光标按单词跳转
+上..." />
+    <meta name="keywords" content="work" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://MouseHappy123.github.io">
+  <img class="avatar" src="https://MouseHappy123.github.io/images/avatar.png?v=1685983394252" alt="">
+  </a>
+  <h1 class="site-title">
+    Gridea
+  </h1>
+  <p class="site-description">
+    温故而知新
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              常用命令及操作
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-05-13
+              </span>
+              <span>
+                2 min read
+              </span>
+              
+                <a href="https://MouseHappy123.github.io/tag/work/" class="post-tag">
+                  # work
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h2 id="mac">mac</h2>
+<p>command+r 刷新<br>
+command+y 浏览器历史<br>
+command + shift + 4（+ctrl） 部分截图（并复制）</p>
+<p>shift + command + 左右箭头 选择行文字<br>
+option + 左右 光标按单词跳转<br>
+上+command+p vscode打开搜索栏<br>
+command + t vnote切换编辑预览模式<br>
+control + '-' VsCode跳转回之前的位置<br>
+shift + option + 上下 复制上下一行/段<br>
+option + z 压缩字符串到屏幕大小</p>
+<h2 id="iterm">iterm</h2>
+<p>command + = 启动<br>
+command + 左右 移动光标<br>
+command + 删除 整行删除</p>
+<h2 id="git">git</h2>
+<p>git stash 保存当前工作进度<br>
+git stash pop 恢复最新的进度到工作区</p>
+<h2 id="vim">vim</h2>
+<p>shift + 4 行尾<br>
+shift + g 最后一行<br>
+gg 第一行<br>
+0 行首<br>
+dG 删除全部<br>
+w b 单词首字母跳；de从头删除单词<br>
+e ge 单词尾字母跳；dw从尾删除单词</p>
+<h3 id="可视化">可视化</h3>
+<p>shift + v 行模式，选中后d快速删除行<br>
+ctrl+v 块模式，多行同一位置批量增加，选中后，shift + i ，再esc，批量删除 选中后，d</p>
+<h2 id="sed-head-tail">sed head tail</h2>
+<p>在Linux中，可以使用以下命令来查看文件的第n行：</p>
+<pre><code>sed -n 'n p' filename
+其中，n为要查看的行数，filename为要查看的文件名。
+
+例如，要查看文件test.txt的第5行，可以使用以下命令：
+sed -n '5 p' test.txt
+</code></pre>
+<p>另外，还可以使用以下命令来查看指定范围内的行：</p>
+<pre><code>查看文件的前n行：head -n filename
+查看文件的后n行：tail -n filename
+查看文件的第n行到第m行：sed -n 'n,mp' filename
+查看文件的第n行到末尾行：sed -n 'n,$p' filename
+例如，要查看文件test.txt的前10行，可以使用以下命令：
+head -n 10 test.txt
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#mac">mac</a></li>
+<li><a href="#iterm">iterm</a></li>
+<li><a href="#git">git</a></li>
+<li><a href="#vim">vim</a>
+<ul>
+<li><a href="#%E5%8F%AF%E8%A7%86%E5%8C%96">可视化</a></li>
+</ul>
+</li>
+<li><a href="#sed-head-tail">sed head tail</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://MouseHappy123.github.io/post/hello-gridea/">
+              <h3 class="post-title">
+                Hello Gridea
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://MouseHappy123.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

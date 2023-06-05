@@ -1,0 +1,512 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>对mysql的一些思考 | Gridea</title>
+<link rel="shortcut icon" href="https://MouseHappy123.github.io/favicon.ico?v=1685983394252">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://MouseHappy123.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="对mysql的一些思考 | Gridea - Atom Feed" href="https://MouseHappy123.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="性能对比
+
+
+
+存储类型
+存储服务(例)
+优势
+劣势
+性能概览
+备注
+
+
+
+
+单机关系数据库
+mysql(单机)
+结构简单，支持关系查询
+写无法扩容
+写：700~1000，无法扩展；读：2000左右，可增加从库扩展
+
+
+
+分布式关系数据库
+..." />
+    <meta name="keywords" content="work" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://MouseHappy123.github.io">
+  <img class="avatar" src="https://MouseHappy123.github.io/images/avatar.png?v=1685983394252" alt="">
+  </a>
+  <h1 class="site-title">
+    Gridea
+  </h1>
+  <p class="site-description">
+    温故而知新
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              对mysql的一些思考
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-05-21
+              </span>
+              <span>
+                14 min read
+              </span>
+              
+                <a href="https://MouseHappy123.github.io/tag/work/" class="post-tag">
+                  # work
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="性能对比">性能对比</h1>
+<table>
+<thead>
+<tr>
+<th>存储类型</th>
+<th>存储服务(例)</th>
+<th>优势</th>
+<th>劣势</th>
+<th>性能概览</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>单机关系数据库</td>
+<td>mysql(单机)</td>
+<td>结构简单，支持关系查询</td>
+<td>写无法扩容</td>
+<td>写：700~1000，无法扩展；读：2000左右，可增加从库扩展</td>
+<td></td>
+</tr>
+<tr>
+<td>分布式关系数据库</td>
+<td>DRDS(集群)</td>
+<td>写容量支持水平扩容</td>
+<td>无法缩分片，结构复杂，运维难度大</td>
+<td>写：单分片700~1000，可增加分片扩展；读：2000左右，可增加从库扩展</td>
+<td></td>
+</tr>
+<tr>
+<td>内存kv</td>
+<td>Redis</td>
+<td>读写性能，支持复杂结构，原子操作</td>
+<td>内存成本高，持久化有延迟，丢数据风险高</td>
+<td>写：单分片1w，可扩分片；读：单副本1w，可扩副本/分片 ｜</td>
+<td></td>
+</tr>
+<tr>
+<td>ssd kv</td>
+<td>mint/sndb</td>
+<td>相对内存KV，单位容量存储成本低，读性能高</td>
+<td>仅支持简单读写操作</td>
+<td>无单实例数据，可横向扩展，已实现云原生，直接使用sndb资源计算器计算所需资源。官方建议读写比&gt;3:1</td>
+<td>注意热key问题，容量评估：http://www.redis.cn/redis_memory/</td>
+</tr>
+<tr>
+<td>nosql</td>
+<td>mongodb</td>
+<td>无schema，扩展容易；支持深层字段查询；水平扩展比关系数据库容易</td>
+<td>性能</td>
+<td>写：可增加分片扩展；读：可增加副本扩展</td>
+<td>mongo分片并不好用，也不是无限的</td>
+</tr>
+</tbody>
+</table>
+<h2 id="选型原则">选型原则</h2>
+<ol>
+<li>说明<br>
+table存储、nosql、newsql使用较少，一般都是特定需求场景 或 其他选型成本高。</li>
+<li>基本原则</li>
+</ol>
+<ul>
+<li>需求满足：有关系查询场景，必须有关系数据库，存在深层字段简单查询，可以考虑nosql，复杂检索建议考虑双写ElasticSearch。在线服务不推荐使用nosql</li>
+<li>性能满足：预估业务qps，考虑存储选型是否支持对应读/写扩容</li>
+<li>容量满足：容量计算，一般关系存储要预估未来2~3年容量，容量满前需要分库分表(或切换至分布式集群)；KV存储同样需要计算容量，主要考虑是成本，通常存储瓶颈选择ssd kv，qps瓶颈选择内存KV</li>
+<li>数据安全：内存kv即使有持久化，也不是实时的，因此，如果有持久化诉求，不建议只考虑内存kv，可以考虑ssd kv or 关系db+内存KV</li>
+<li>成本最优：一般会有多种实现方案，最终需要结合成本考虑。有时由于成本过高，我们会选择多种存储服务综合使用，例如短期数据存内存KV，长期数据存ssd KV</li>
+</ul>
+<ol start="3">
+<li>注意事项</li>
+</ol>
+<ul>
+<li>kps：每秒key访问的数量，一般KV存储都会使用kps评估性能。</li>
+<li>tps：每秒实务数，关系db有时会关注tps</li>
+<li>redis/sndb的核心差异：原子操作、复杂数据结构，有时这些诉求导致无法选择sndb这类ssd kv</li>
+<li>数据大小：KV存储，对value大小一般都有要求，redis通常建议不超过100k，sndb通常也是小数据不建议超过2mb(均值更低)，超过2mb的建议走bos+cdn</li>
+</ul>
+<h2 id="性能排查">性能排查</h2>
+<p>影响数据库性能的常见因素有：</p>
+<ol>
+<li>业务低效SQL，导致数据库慢查询堆积，整体性能降低<br>
+a. 慢SQL治理<br>
+重点关注扫描行数。大多数情况下慢SQL是由于被访问的表没有合适的索引导致。<br>
+b. 快速KILL异常会话恢复性能<br>
+如果是当前线上服务响应缓慢，此时可能是因为慢SQL导致数据库会话堆积，一般当活跃线程数量超过30个就可能导致性能问题。</li>
+<li>读写流量过大，数据库性能容量不足（扩容）<br>
+数据库性能容量的重要衡量指标有：<br>
+读流量（com_reads/10，com_reads为10s内的读流量总和)<br>
+写流量（com_writes/10，com_writes为10s内的写流量总和)<br>
+CPU繁忙率（CPU_USED_PERCENT.MATRIX）</li>
+</ol>
+<ul>
+<li>评估标准<br>
+不同规格的存储实例能够承载的读写流量上限不同，下表是各套餐单个存储实例能够支撑的流量的对照：</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>套餐规格</th>
+<th>读QPS上限</th>
+<th>写QPS上限</th>
+<th>CPU繁忙率上限</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>磁盘:200G;内存:8G;CPU:15核</td>
+<td>300</td>
+<td>500</td>
+<td>不超过80%</td>
+</tr>
+<tr>
+<td>磁盘:400G;内存:12G;CPU:30核</td>
+<td>500</td>
+<td>500</td>
+<td>不超过80%</td>
+</tr>
+<tr>
+<td>磁盘:800G;内存:24G;CPU:60核</td>
+<td>1000</td>
+<td>800</td>
+<td>不超过80%</td>
+</tr>
+<tr>
+<td>磁盘:1200G;内存:32G;CPU:90核</td>
+<td>1500</td>
+<td>800</td>
+<td>不超过80%</td>
+</tr>
+<tr>
+<td>磁盘:1600G;内存:48G;CPU:120核</td>
+<td>2000</td>
+<td>1000</td>
+<td>不超过80%</td>
+</tr>
+<tr>
+<td>注意：读QPS/写QPS/CPU繁忙率中任何一个指标达到上限，则表明该集群的性能容量即将达到瓶颈。</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>处理方式<br>
+线上常见的性能问题主要原因有两个：慢SQL导致性能下降、读写流量过大。对应的处理方式如下：<br>
+告警指标	处理方式<br>
+读QPS达到上限	扩容从库分摊读流量；<br>
+写QPS达到上限	逻辑库拆分到独立集群；如果是分布式集群可设置更多的分片数；(分摊写流量到各分片上，写时基于分区键定位子表，再根据子表hash结果映射到不同的分片，可参考tips3)<br>
+CPU繁忙率达到上限	慢查询优化；非正式线上SQL访问线下库</li>
+</ul>
+<ol>
+<li>跨地域访问导致的平响增加<br>
+如果业务机器分布在多个地域，那么数据库代理节点、存储节点均需要对应在多个地域进行部署（同一个地域不同机房不区分）。<br>
+需要注意的是，各地域读的流量会通过代理节点发往本地域存储节点，写流量都会发往主库，因此写操作存在跨地域访问的情况。 一般华北到华东的网络耗时为20ms左右，华东到华南网络耗时20ms左右。</li>
+<li>异常事务导致的锁等待<br>
+当一个事务修改大量数据后长时间不提交，则长期对被修改的记录添加行锁（在没有合适索引的情况下，甚至会对整个表加锁），导致其他写事务阻塞。需要确保：<br>
+a) 对数据的更新SQL确认能走索引路径<br>
+b) 严格控制事务大小<br>
+c）确保事务及时提交</li>
+</ol>
+<h1 id="分布式">分布式</h1>
+<h2 id="分库分表">分库分表</h2>
+<p>水平分表<br>
+一张分布式表(table)会按照指定的 partition key 和 partition mode（一般是hashmode）被水平拆分成多个数据片（称为tablet），分散在多个数据存储节点(tsc)中。分布式表主要解决单机容量问题，并且通过平行写入提升整体的写入能力。开发时不需要再考虑数据如何拆分和数据路由等问题，只需要设定 partition key 即可实现水平分表的能力。</p>
+<h3 id="分片方法">分片方法</h3>
+<p>基于范围：根据分片键（字段）的范围进行分布存储； 基于哈希：基于分片键哈希值的方式均匀打散到多个子表中</p>
+<ul>
+<li>提示：建议集群中每个分布式表的分片数量相同。这样可以确保各个表对于同一个key能够存储在同一个分片，可以减少跨分片的事务。</li>
+</ul>
+<h3 id="分片策略">分片策略</h3>
+<p>基于范围的分片填写格式举例： [&quot;[0,150000000]&quot;, &quot;[150000000,300000000]&quot;]将数据按照范围分布在两个分片中。</p>
+<p>基于哈希的分片填写格式：输入子表的数量即可。注意，必须为2的指数。例如：32，64，512....2048，建表时先预估表可能达到的行数，建议每个子表存储的行数不超过100万。对于大表一般建议不小于512不超过2048。<br>
+提示：建议集群中每个分布式表的分片数量相同。这样可以确保各个表对于同一个key能够存储在同一个分片，可以减少跨分片的事务（DRDS不支持分布式事务）。</p>
+<p>hash类型在建表的时候选择的，有outerFirst和innerFirst两种(建议选outerFirst方式，对于后续分片扩容更加便利)。<br>
+hash类型决定了MOD在集群的分布是顺序分布还是均匀分布<br>
+例如，对于8个分片的Hash分布,数据所在的子表号为分片键MOD(8), 数据均匀分布到8个子表。 假设两个分片 = [xdbtest_0000, xdbtest_0001]<br>
+outerFirst:<br>
+xdbtest_0000分片子表: t_tablet_0 t_tablet_2 t_tablet_4 t_tablet_6<br>
+xdbtest_0001分片子表: t_tablet_1 t_tablet_3 t_tablet_5 t_tablet_7</p>
+<p>innerFirst:<br>
+xdbtest_0000分片子表: t_tablet_0 t_tablet_1 t_tablet_2 t_tablet_3<br>
+xdbtest_0001分片子表: t_tablet_4 t_tablet_5 t_tablet_6 t_tablet_7</p>
+<h3 id="tips">tips</h3>
+<ol>
+<li>分布式表如何选择分片键？<br>
+分片键的选择一般遵循下面几个原则</li>
+</ol>
+<ul>
+<li>优先选择贯穿整个业务表的字段。例如所有表都有userid作为主要的查询条件则可以考虑将其作为分片键。</li>
+<li>一般会选择区分度高的列，这样才能使数据打散到更多的子表中。例如性别列（只有男女两个选项）就不适合作为分片键。</li>
+<li>需要考虑数据的分布规律，例如根据分片键hash分布到各子表后尽量使得每个子表数据量相差不大。</li>
+<li>可以将分片键设置为表的主键。</li>
+<li>不能使用自增id字段作为分片键。</li>
+</ul>
+<ol start="2">
+<li>
+<p>数据库各表能使用不同的字段作为分片键吗？<br>
+建议数据库中所有表采用同一个字段作为分片键（例如，每个表都使用userid作为分片字段）。原因有两个：<br>
+a存储层面)如果要在一个事务中访问两个表，且两个表的分片键不同，就会导致访问的数据跨分片。而drds目前没有支持跨分片的事务，因此不允许这样访问。<br>
+b业务层面)使用不同的字段作为分片键使得业务逻辑混乱，不利于维护。</p>
+</li>
+<li>
+<p>基于hash的存储方式，如何知道某一条数据位于哪个分片，哪个子表？<br>
+explain SQL带上分片键进行查询便可列出记录位于哪个子表。再根据hash类型计算子表位于哪个分片中。</p>
+</li>
+</ol>
+<h2 id="并行计算">并行计算</h2>
+<p>对于一次查询大量数据的场景，支持把一次大数据量查询分散到多个存储节点上小数据量查询，并对数据结果进行合并聚合返回给用户，这样可以提升大结果集大数据量查询的性能。</p>
+<h2 id="读写分离">读写分离</h2>
+<p>首先对 query 拆分成多个子句并路由到一个或多个存储节点上，每个存储节点实现透明的读写分离策略，写请求统一到存储节点主库，读请求被分流到多个只读节点和主库上，提升集群的读能力。一个事务内的读请求，不会被读写分离，而是和写请求一样在主库上执行。</p>
+<h2 id="负载均衡">负载均衡</h2>
+<p>如果一个存储节点存在多个只读节点，那么只读节点间实现负载均衡，避免单个节点或少数节点出现负载过大。</p>
+<h2 id="高可用">高可用</h2>
+<p>每个存储节点主库都有一个热备节点，当检测到主库服务异常或不可用情况，会启动故障切换流程，保证服务高可用。</p>
+<h2 id="可扩展">可扩展</h2>
+<p>三种类型的扩展：<br>
+存储节点套餐扩展，通过提升存储节点磁盘、CPU、内存，获得单节点更大存储空间和性能。<br>
+只读节点扩展，通过增加只读节点，获得整个集群更高的读吞吐能力。<br>
+分片扩展，通过对数据拆分和增加分片，使得整个集群写能力和存储容量更高。</p>
+<h1 id="状态机">状态机</h1>
+<p>状态机可以解决业务上并发可能导致的问题，且有时加锁也不一定能解决的情况状态机也适用<br>
+策略：表设计一个status状态字段</p>
+<h2 id="case">case</h2>
+<ol>
+<li>多ip登录<br>
+假设一个账号在两个IP上登录了，同时修改昵称</li>
+</ol>
+<p>在用户表中多设计一个状态字段，0代表正常状态，1代表审核状态，当用户的信息发生变化后，对应的用户记录都会被改成「审核中状态」，而执行语句时只允许修改正常状态的用户记录，伪<code>SQL</code>如下：</p>
+<pre><code class="language-sql">-- 之前的SQL语句
+update zz_user set user_name = &quot;竹子爱熊猫&quot;, ... where user_id = 888;
+
+-- 优化后的SQL语句
+update 
+    zz_user 
+set 
+    user_name = &quot;竹子爱熊猫&quot;, status = 1, ... 
+where 
+    user_id = 888 and status = 0;
+</code></pre>
+<p>通过这样的手段，在第一个IP修改成功之后，第二个IP就无法满足SQL语句的执行条件，最终就无法真正修改用户数据。</p>
+<ol start="2">
+<li>一个<code>IP</code>删除订单，一个<code>IP</code>结算订单，两个操作同一时刻内进行<br>
+此时加锁不能解决，因为加锁只能让并行操作串行化，但最终两个业务操作总会执行的，这里加锁之后只会出现两种情况：</li>
+</ol>
+<blockquote>
+<p>①删除订单的请求先获取锁，先删掉了订单，结算订单的请求无法执行结算业务（因为订单都没了）。<br>
+②结算订单的请求先拿到锁，用户付钱结算了订单之后，删除订单的请求获取到了锁，然后把用户已经付钱的订单删了。</p>
+</blockquote>
+<p>做法应该是在订单表上面也设计一个<code>status</code>状态字段。</p>
+<p>订单表的状态字段，可选状态如下：</p>
+<ul>
+<li><code>0</code>：待结算（待支付）。</li>
+<li><code>1</code>：待发货。</li>
+<li><code>2</code>：待收货。</li>
+<li><code>3</code>：已签收。</li>
+<li><code>.....</code></li>
+<li><code>9</code>：已销毁。</li>
+</ul>
+<p>有了上述这个状态机字段后，再回过头来看「删除订单、结算订单」这两个业务操作，本质上都是执行<code>update</code>操作，删除是将状态改为<code>9</code>，结算是将状态改为<code>1</code>，所以<code>SQL</code>语句只需要新增一个条件即可：</p>
+<pre><code class="language-sql">-- 删除订单（只允许删除待结算、已签收的订单）
+update zz_order set status = 9,... where status = 0 or status = 3;
+
+-- 结算订单（只允许结算待支付的订单）
+update zz_order set status = 1,... where status = 0;
+</code></pre>
+<p>也就是直接通过状态字段限制其他并发操作，无论「删除订单、结算订单」谁先执行，另一个操作都无法继续执行。</p>
+<ol start="3">
+<li>状态机字段不需要额外设计的场景<br>
+同时下单</li>
+</ol>
+<pre><code>-- 乐观锁+状态机
+update 
+    zz_account 
+set 
+    balance = balance - 100, .......
+where
+    version = version + 1 and balance = [修改前的余额];
+
+-- 行锁+状态机
+update 
+    zz_account 
+set 
+    balance = balance - 100, .......
+where
+    balance = [修改前的余额]
+for update; //这里其实没必要手动加行锁
+</code></pre>
+<p>也就是多加了一个where条件：balance=[修改前的余额]，还是前面那个举例，假设下单-99这个操作先拿到锁，提现-2这个操作就会阻塞；当下单操作执行完成后，余额会变成100-99=1元；接着提现操作拿到执行权，可是在执行时，会发现余额并不是起初的100元了，因此提现的update语句不能满足条件，最终无法执行。</p>
+<h2 id="有了状态机之后就不需要加锁了吗">有了状态机之后，就不需要加锁了吗？</h2>
+<p>其实这种情况下，加不加锁就无所谓了，因为<code>MySQL-InnoDB</code>本身有行锁机制，多个事务并发修改同一条数据，都会被串行化执行，因此在后端加锁，只是将请求串行化的工作提前罢了，这反而会影响整体的性能。</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#%E6%80%A7%E8%83%BD%E5%AF%B9%E6%AF%94">性能对比</a>
+<ul>
+<li><a href="#%E9%80%89%E5%9E%8B%E5%8E%9F%E5%88%99">选型原则</a></li>
+<li><a href="#%E6%80%A7%E8%83%BD%E6%8E%92%E6%9F%A5">性能排查</a></li>
+</ul>
+</li>
+<li><a href="#%E5%88%86%E5%B8%83%E5%BC%8F">分布式</a>
+<ul>
+<li><a href="#%E5%88%86%E5%BA%93%E5%88%86%E8%A1%A8">分库分表</a>
+<ul>
+<li><a href="#%E5%88%86%E7%89%87%E6%96%B9%E6%B3%95">分片方法</a></li>
+<li><a href="#%E5%88%86%E7%89%87%E7%AD%96%E7%95%A5">分片策略</a></li>
+<li><a href="#tips">tips</a></li>
+</ul>
+</li>
+<li><a href="#%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97">并行计算</a></li>
+<li><a href="#%E8%AF%BB%E5%86%99%E5%88%86%E7%A6%BB">读写分离</a></li>
+<li><a href="#%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1">负载均衡</a></li>
+<li><a href="#%E9%AB%98%E5%8F%AF%E7%94%A8">高可用</a></li>
+<li><a href="#%E5%8F%AF%E6%89%A9%E5%B1%95">可扩展</a></li>
+</ul>
+</li>
+<li><a href="#%E7%8A%B6%E6%80%81%E6%9C%BA">状态机</a>
+<ul>
+<li><a href="#case">case</a></li>
+<li><a href="#%E6%9C%89%E4%BA%86%E7%8A%B6%E6%80%81%E6%9C%BA%E4%B9%8B%E5%90%8E%E5%B0%B1%E4%B8%8D%E9%9C%80%E8%A6%81%E5%8A%A0%E9%94%81%E4%BA%86%E5%90%97">有了状态机之后，就不需要加锁了吗？</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://MouseHappy123.github.io/post/dui-redis-de-yi-xie-si-kao/">
+              <h3 class="post-title">
+                对redis的一些思考
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://MouseHappy123.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

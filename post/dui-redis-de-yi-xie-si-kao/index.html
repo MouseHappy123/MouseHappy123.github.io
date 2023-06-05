@@ -1,0 +1,422 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>对redis的一些思考 | Gridea</title>
+<link rel="shortcut icon" href="https://MouseHappy123.github.io/favicon.ico?v=1685983394252">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://MouseHappy123.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="对redis的一些思考 | Gridea - Atom Feed" href="https://MouseHappy123.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="集群
+分布式redis
+分布式Redis是指将多个Redis实例组成一个逻辑集群，共同承担存储数据和处理客户端请求的工作。与单机Redis相比，分布式Redis能够提供更高的存储容量和更好的性能，同时还可以提供更好的可用性和可伸缩性。
+分布..." />
+    <meta name="keywords" content="work" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://MouseHappy123.github.io">
+  <img class="avatar" src="https://MouseHappy123.github.io/images/avatar.png?v=1685983394252" alt="">
+  </a>
+  <h1 class="site-title">
+    Gridea
+  </h1>
+  <p class="site-description">
+    温故而知新
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              对redis的一些思考
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-05-14
+              </span>
+              <span>
+                16 min read
+              </span>
+              
+                <a href="https://MouseHappy123.github.io/tag/work/" class="post-tag">
+                  # work
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="集群">集群</h1>
+<h2 id="分布式redis">分布式redis</h2>
+<p>分布式Redis是指将多个Redis实例组成一个逻辑集群，共同承担存储数据和处理客户端请求的工作。与单机Redis相比，分布式Redis能够提供更高的存储容量和更好的性能，同时还可以提供更好的可用性和可伸缩性。</p>
+<p>分布式Redis通常有两种架构方式：主从复制和Redis集群。</p>
+<p>主从复制<br>
+主从复制架构包括一个主节点和多个从节点。主节点负责接收客户端请求、处理数据更新和复制数据到从节点。从节点负责向主节点请求数据更新，并将主节点的数据复制到本地，从而保证数据的可靠性和一致性。当主节点故障时，从节点可以自动选举出一个新的主节点来接替原主节点的工作。</p>
+<p>Redis集群<br>
+Redis集群是一种分布式Redis架构，通过数据分片的方式将数据存储在多个Redis节点中，从而扩展存储容量和处理性能。Redis集群通常包括多个主节点和从节点，每个节点都负责存储一部分数据，并与其他节点协同工作，以实现数据的一致性和可靠性。</p>
+<p>Redis集群通常采用哈希槽分配算法，将数据按照哈希值分散到不同的节点上，并通过复制机制保证数据的可靠性和一致性。当某个节点故障时，集群可以自动将故障节点的哈希槽重新分配到其他节点上，从而保证整个集群的可用性和可靠性。</p>
+<h2 id="分布式redis集群登录到某个节点上查询为什么能查到所有的数据">分布式redis集群，登录到某个节点上查询，为什么能查到所有的数据</h2>
+<p>在 Redis 集群中，所有节点都存储了部分数据，也就是数据被分散存储在不同的节点上。当一个客户端连接到任何一个节点并发送一个命令时，该节点会根据数据的分片规则将该命令转发到适当的节点上进行处理，该节点再将处理结果返回给客户端。</p>
+<p>因此，无论连接到集群中的哪个节点，客户端都可以查看到整个集群的数据，因为数据被分散存储在各个节点中，而不是仅存在于特定的节点上。这就是 Redis 集群的数据共享机制。</p>
+<h2 id="redis主从同步适用场景">redis主从同步适用场景</h2>
+<p>Redis主从同步适用于以下场景：</p>
+<p>高可用性：通过配置Redis主从复制，可以实现主节点的热备份。当主节点发生故障或不可用时，从节点可以自动接管成为新的主节点，确保系统的高可用性。</p>
+<p>负载均衡：通过将读操作分发到从节点，可以减轻主节点的读取压力，实现读写分离。这样可以提高系统的读取性能和吞吐量，同时保证数据的一致性。</p>
+<p>数据备份：从节点可以作为主节点的数据备份，当主节点发生数据丢失或损坏时，可以从从节点进行数据恢复，确保数据的安全性和可靠性。</p>
+<p>离线数据分析：从节点可以被用于离线数据分析或报表生成等任务，以避免对主节点造成额外的负载，同时保持主节点的高性能和低延迟。</p>
+<p>扩展性：通过添加更多的从节点，可以扩展Redis的读取能力，以适应高并发读取的需求。这样可以通过水平扩展来应对增加的用户请求。</p>
+<p>需要注意的是，Redis主从同步并不能提供强一致性，因为数据同步存在一定的延迟。因此，对于需要强一致性的应用场景，如金融交易等，建议使用Redis Cluster或其他更复杂的数据复制方案。另外，Redis主从同步也不能用于数据分片和水平扩展，如果需要横向扩展存储容量，可以考虑使用Redis Cluster或其他分布式存储解决方案。</p>
+<h2 id="redis分布式集群的主备服务器适用主从复制吗">redis分布式集群的主备服务器适用主从复制吗</h2>
+<p>是的，Redis分布式集群的主备服务器可以使用主从复制来提供高可用性和数据备份。</p>
+<p>在Redis分布式集群中，每个槽(slot)可以有一个主节点和多个备份节点。主节点负责处理对应槽的读写操作，而备份节点则复制主节点的数据并提供读取服务。这种主备关系可以使用Redis的主从复制机制来实现。</p>
+<p>通过主从复制，主节点将写操作同步到备份节点，确保数据的一致性和可靠性。当主节点发生故障或不可用时，可以通过自动故障转移或手动操作，将备份节点升级为新的主节点，继续提供服务。这样可以保证Redis分布式集群的高可用性和持久性。</p>
+<p>需要注意的是，Redis分布式集群的主备服务器之间的主从复制与整个集群的分布式机制是相互独立的。主备服务器之间的主从复制只负责备份和故障转移，而不参与集群的数据分片和负载均衡。整个集群的数据分片和负载均衡由集群中的所有节点共同协作完成。</p>
+<h2 id="redis分布式集群的主备服务器适用主从复制吗-2">redis分布式集群的主备服务器适用主从复制吗</h2>
+<p>是的，Redis分布式集群的主备服务器可以使用主从复制来提供高可用性和数据备份。</p>
+<p>在Redis分布式集群中，每个槽(slot)可以有一个主节点和多个备份节点。主节点负责处理对应槽的读写操作，而备份节点则复制主节点的数据并提供读取服务。这种主备关系可以使用Redis的主从复制机制来实现。</p>
+<p>通过主从复制，主节点将写操作同步到备份节点，确保数据的一致性和可靠性。当主节点发生故障或不可用时，可以通过自动故障转移或手动操作，将备份节点升级为新的主节点，继续提供服务。这样可以保证Redis分布式集群的高可用性和持久性。</p>
+<p>需要注意的是，Redis分布式集群的主备服务器之间的主从复制与整个集群的分布式机制是相互独立的。主备服务器之间的主从复制只负责备份和故障转移，而不参与集群的数据分片和负载均衡。整个集群的数据分片和负载均衡由集群中的所有节点共同协作完成。</p>
+<h1 id="基础">基础</h1>
+<h2 id="怎么保证redis多个操作的一致性">怎么保证redis多个操作的一致性</h2>
+<p>要保证Redis多个操作的一致性，可以采取以下措施：</p>
+<p>事务（Transaction）：Redis提供事务机制，可以将多个命令打包在一个事务里面，一次性提交执行。在事务执行期间，Redis不会处理其他客户端发来的请求，保证了事务的原子性。如果事务执行失败，所有的命令都不会被执行。</p>
+<p>Watch机制：Watch机制可以用来保证Redis的原子性。可以监视某个Key，在执行事务前，先执行WATCH命令监视指定的Key，如果该Key被其他客户端修改，则事务将被打断，没有任何操作被执行。Watch机制是一种乐观锁机制。</p>
+<p>分布式锁：分布式锁可以用来保证Redis多个操作的一致性。在多个客户端同时操作同一个Key时，可以通过设置分布式锁来保证每次只有一个客户端可以修改该Key。</p>
+<p>总之，Redis保证多个操作的一致性，需要使用事务、Watch机制和分布式锁等技术手段。</p>
+<h2 id="lua脚本可以做到吗">lua脚本可以做到吗</h2>
+<p>是的，可以使用Lua脚本来保证Redis中多个操作的一致性。Redis中可以使用Lua脚本实现事务，即一次性执行多个Redis命令。Lua脚本在Redis中的执行是原子的，这意味着当Lua脚本在执行时，其他客户端无法对Redis数据库进行修改。</p>
+<p>使用Lua脚本进行事务操作时，可以使用Redis提供的 EVAL 命令来执行Lua脚本。在Lua脚本中，可以使用 Redis 提供的 MULTI 命令来开始一个事务，使用 EXEC 命令来执行事务，并使用 Redis 提供的 WATCH 命令来监视一个或多个键的变化，从而保证在事务执行过程中，这些键不会被其他客户端修改。</p>
+<p>除了实现事务外，Lua脚本还可以用于Redis中的其他场景，例如实现分布式锁等。</p>
+<h1 id="redis-大key-热key">redis 大key 热key</h1>
+<h2 id="什么算大key热key">什么算大key，热key？</h2>
+<h3 id="大key定义">大key定义</h3>
+<p>衡量什么是大key，string类型key的value本身很大，或者复合类型比如list的成员数量很多.</p>
+<table>
+<thead>
+<tr>
+<th>key类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>string类型</td>
+<td>如果超过10M，那肯定是big-key；如果超过 1M，也不算小，可能会出现10ms以上的慢请求，并发到100的时候，甚至平响飙升秒级；如果一个文章的key的大小11KB，当QPS达到1000的时候，单个key的网络流出约是10M/s，当多个文章同时请求的时候，也可能会有10ms以上的慢请求。</td>
+</tr>
+<tr>
+<td>hash，list等复合类型</td>
+<td>如果单个value超过10M或者元素（成员）个数超过1W，那就算big-key。</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>注：这里复合类型包括常用的list，hash，set，zset</p>
+</blockquote>
+<h3 id="热key定义">热key定义</h3>
+<p>衡量什么是热点key，某个key的QPS较高（相比其他key），并引起CPU、网络流入流出很高，影响同redis实例其他数据的请求。举几个例子，更容易懂一些。</p>
+<table>
+<thead>
+<tr>
+<th>key类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>string类型</td>
+<td>热门直播间ID，这个key的value不大，但是QPS达到3W/s，造成这个分片的其他key的请求等待时间变长了。</td>
+</tr>
+<tr>
+<td>hash类型</td>
+<td>某个地域的所有实例的配置存在一个hash类型key中，每个地域4W个实例（4W个member），获取每个实例配置都要请求这个key，造成这个key的网络流出达到5M/s；又比如重操作HGETALL 取一个1M的key，导致单分片的网络流出达到20M/s。</td>
+</tr>
+<tr>
+<td>list类型</td>
+<td>比如任务id列表，队列出现堆积，一旦开始大量消费的时候，LPOP的QPS达到4W，网络流出达到10-20M/s。</td>
+</tr>
+<tr>
+<td>zset类型</td>
+<td>音乐播放历史，按照听歌次数排序，上千条记录一直执行zrangebyscore复杂度较高的命令，redis的cpu达到80%。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="大key和热key会带来什么问题呢">大key和热key会带来什么问题呢？</h2>
+<ul>
+<li>耗时变长：热key影响了同实例其他key的访问平响，严重的拉垮整个redis平响，甚至击穿，透传到DB层带来更严重的连接打满等问题。</li>
+<li>内存打满：大key导致内存打满，出现OOM，旧的数据意外淘汰，新的数据无法写入，业务请求有损，分布式redis的架构中会导致某一个分片的内存用满，其余分片内存使用率很低。</li>
+<li>复制失败：热key网络流入流出过高，导致redis复制断开，并且可能导致复制重连一直失败，主库压力大，慢请求变多；大key的删除会导致阻塞，发生主从切换，请求miss或者超时。</li>
+</ul>
+<h2 id="如何发现和定位大key和热key">如何发现和定位大key和热key？</h2>
+<p>Redis RDB（Redis Database）文件是一种持久化存储机制，用于将 Redis 的数据以二进制格式写入磁盘。RDB 文件包含了 Redis 数据库的快照，可以在需要时用于数据的恢复和持久化。</p>
+<p>如果你想对 Redis RDB 文件进行分析，了解其中的数据结构和内容，可以使用以下方法：</p>
+<p>rdb-cli 工具：rdb-cli 是一个开源的用于解析和分析 Redis RDB 文件的命令行工具。你可以使用它来导入 RDB 文件并浏览其中的数据。rdb-cli 支持以文本格式输出 RDB 文件的内容，使你可以更好地理解其中的键、值、数据类型和元数据等信息。你可以在 rdb-cli 的 GitHub 仓库中找到详细的使用说明和示例。</p>
+<p>Redis Protocol 解析器：RDB 文件采用了 Redis Protocol 的格式来存储数据。因此，你可以编写自己的解析器来读取和解析 RDB 文件。通过解析 Redis Protocol，你可以了解到每个键的数据类型、键名、过期时间等信息。这需要对 Redis Protocol 的格式和规范有一定的了解。</p>
+<p>Redis 自带的 rdb.c 源码：如果你对 Redis 的源码比较熟悉，可以直接查看 Redis 的 rdb.c 源文件，其中包含了 Redis RDB 文件的解析逻辑。通过阅读源码，你可以深入了解 Redis RDB 文件的结构、编码方式以及数据的读取和处理过程。</p>
+<p>需要注意的是，对于大型的 RDB 文件，分析和解析可能需要较长的时间和较大的内存消耗。因此，在进行 RDB 文件分析时，建议选择适当的工具和方法，并在测试环境中进行操作，以避免对生产环境的影响。</p>
+<p>另外，Redis 也提供了其他的持久化机制，如 AOF（Append-Only File），它以追加的方式记录 Redis 的写操作，可以通过解析 AOF 文件来了解 Redis 的写入历史。</p>
+<h2 id="该如何设计数据结构以避开大key和热key">该如何设计数据结构以避开大Key和热Key？</h2>
+<p>老生常谈的大Key和热Key，需要拆、需要打散，如上，我们也给出各种类型Value建议大小，怎么拆呢？又如何打散呢？ 除了拆和打散，还有没有别的办法呢？下面举一些常见的场景案例。</p>
+<figure data-type="image" tabindex="1"><img src="https://MouseHappy123.github.io/post-images/1685947136815.png" alt="" loading="lazy"></figure>
+<blockquote>
+<p>注意事项：</p>
+</blockquote>
+<ul>
+<li>Key名字要设置合理过期时间，避免一个Key中堆积很长时间历史数据</li>
+<li>如果预期Key的成员会随着时间增加而变多，建议“HSCAN，SSCAN......”的方式定期清理</li>
+<li>消息队列要监控上下游的生产消费速度，或者监控队列长度，避免任务堆积</li>
+</ul>
+<figure data-type="image" tabindex="2"><img src="https://MouseHappy123.github.io/post-images/1685947185442.png" alt="" loading="lazy"></figure>
+<blockquote>
+<p>注意事项：</p>
+</blockquote>
+<ul>
+<li>对于地域，时间，业务种类这种数据，设计Key的粒度要尽可能小，避免出现地域级别热点Key，利用分类将Key打散</li>
+<li>有时候设计Key的时候习惯用Key名字对应MySQL表名字，那这个Key的范围就容易很大，我们建议将Key拆开，用一些常用数据库字段对应到Key上。</li>
+</ul>
+<figure data-type="image" tabindex="3"><img src="https://MouseHappy123.github.io/post-images/1685947259955.png" alt="" loading="lazy"></figure>
+<blockquote>
+<p>注意事项：</p>
+</blockquote>
+<ul>
+<li>复合类型元素或者成员的Value建议小于4k，避免HGETALL，LRANGE 0 -1，SMEMBERS 取全集导致Redis压力过大</li>
+<li>建议将HGETALL换成HMGET，将LRANGE 0 -1换成LRANGE 0 50获取，SMEMBERS换成SISMEMBER，ZRANGE 0 -1换成ZRANGEBYSCORE加LIMIT</li>
+<li>元素或者成员Value建议是字符串，而不建议使用大JSON或者数组，可以将JSON存到单独的Hash或者String类型的Key中</li>
+</ul>
+<figure data-type="image" tabindex="4"><img src="https://MouseHappy123.github.io/post-images/1685947363255.jpeg" alt="" loading="lazy"></figure>
+<blockquote>
+<p>注意事项：</p>
+</blockquote>
+<ul>
+<li>利用Value在Key的名字上取模，常用在各种ID，即Value是整型，比如用户ID，书籍ID，文章ID</li>
+<li>Key名字使用的分隔符号不建议使用空格和可能引起运算的符号（“-”，“.”，“+”，“=”，......），建议用 “#”，“:”，“_”</li>
+</ul>
+<figure data-type="image" tabindex="5"><img src="https://MouseHappy123.github.io/post-images/1685947396939.jpeg" alt="" loading="lazy"></figure>
+<blockquote>
+<p>注意事项：</p>
+</blockquote>
+<ul>
+<li>预期会经常排序的数据，建议控制元素（成员）个数在1000以内</li>
+<li>ZREMRANGEBYRANK本身复杂度为O(log(N)+M) ，注意使用频率，天级别或者整点或者业务低峰期执行为好</li>
+</ul>
+<figure data-type="image" tabindex="6"><img src="https://MouseHappy123.github.io/post-images/1685947432933.png" alt="" loading="lazy"></figure>
+<blockquote>
+<p>注意事项：</p>
+</blockquote>
+<ul>
+<li>使用合理的数据类型</li>
+</ul>
+<figure data-type="image" tabindex="7"><img src="https://MouseHappy123.github.io/post-images/1685947466597.png" alt="" loading="lazy"></figure>
+<blockquote>
+<p>注意事项：</p>
+</blockquote>
+<ul>
+<li>适合读多写少的数据</li>
+<li>最佳实践是，分布式Redis中，备份数据份数可以用Redis集群分片数评估QPS分布，份数最好是集群分片数的一倍及以上</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>业务使用场景</th>
+<th>举例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>页面 “默认” 展示</td>
+<td>查询高考分数线的功能，比如：需要显示类如【北京】【211】【北京邮电大学】，那么对于这种前端页面打开默认显示的数据不建议从Redis每次动态读取，可以业务侧本地缓存</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>注意事项：<br>
+如果是常用枚举，或者默认参数的数据,建议代码里保存</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>业务使用场景</th>
+<th>举例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>“大文本”/大图文/图片内容/小说/长篇文章/博客/评论内容/客服对话</td>
+<td>将小说文章压缩后存储</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>注意事项：</p>
+</blockquote>
+<ul>
+<li>JSON和XML换成轻量级的Protobuf</li>
+<li>使用Snappy或GZIP压缩</li>
+<li>预期Key可能过大，灌入数据的时候，使用EXPIREAT设置过期时间，不要集中到某个时间戳，最好加上随机时间</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>业务使用场景</th>
+<th>举例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>所有场景，注意命令时间复杂度及其使用频率</td>
+<td>比如O(n)，O(log(n))以及更高复杂度的，控制元素个数，以及命令使用频率，时间复杂度详见：https://redis.io/commands/ <br> 比如INCR的Key需要设置一天的过期时间，那么可以根据返回结果判断，如果已经大于1，就不需要重复 PEXPIREAT <br>  比如Redis4系及以上可以使用MEMORY USAGE查询Key的内存占用，避免未知Key大小，执行DEBUG OBJECT 造成阻塞 <br>  比如 O(N) 的N是成员（元素）总数的慎用或者降低使用频率</td>
+</tr>
+</tbody>
+</table>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#%E9%9B%86%E7%BE%A4">集群</a>
+<ul>
+<li><a href="#%E5%88%86%E5%B8%83%E5%BC%8Fredis">分布式redis</a></li>
+<li><a href="#%E5%88%86%E5%B8%83%E5%BC%8Fredis%E9%9B%86%E7%BE%A4%E7%99%BB%E5%BD%95%E5%88%B0%E6%9F%90%E4%B8%AA%E8%8A%82%E7%82%B9%E4%B8%8A%E6%9F%A5%E8%AF%A2%E4%B8%BA%E4%BB%80%E4%B9%88%E8%83%BD%E6%9F%A5%E5%88%B0%E6%89%80%E6%9C%89%E7%9A%84%E6%95%B0%E6%8D%AE">分布式redis集群，登录到某个节点上查询，为什么能查到所有的数据</a></li>
+<li><a href="#redis%E4%B8%BB%E4%BB%8E%E5%90%8C%E6%AD%A5%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF">redis主从同步适用场景</a></li>
+<li><a href="#redis%E5%88%86%E5%B8%83%E5%BC%8F%E9%9B%86%E7%BE%A4%E7%9A%84%E4%B8%BB%E5%A4%87%E6%9C%8D%E5%8A%A1%E5%99%A8%E9%80%82%E7%94%A8%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6%E5%90%97">redis分布式集群的主备服务器适用主从复制吗</a></li>
+<li><a href="#redis%E5%88%86%E5%B8%83%E5%BC%8F%E9%9B%86%E7%BE%A4%E7%9A%84%E4%B8%BB%E5%A4%87%E6%9C%8D%E5%8A%A1%E5%99%A8%E9%80%82%E7%94%A8%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6%E5%90%97-2">redis分布式集群的主备服务器适用主从复制吗</a></li>
+</ul>
+</li>
+<li><a href="#%E5%9F%BA%E7%A1%80">基础</a>
+<ul>
+<li><a href="#%E6%80%8E%E4%B9%88%E4%BF%9D%E8%AF%81redis%E5%A4%9A%E4%B8%AA%E6%93%8D%E4%BD%9C%E7%9A%84%E4%B8%80%E8%87%B4%E6%80%A7">怎么保证redis多个操作的一致性</a></li>
+<li><a href="#lua%E8%84%9A%E6%9C%AC%E5%8F%AF%E4%BB%A5%E5%81%9A%E5%88%B0%E5%90%97">lua脚本可以做到吗</a></li>
+</ul>
+</li>
+<li><a href="#redis-%E5%A4%A7key-%E7%83%ADkey">redis 大key 热key</a>
+<ul>
+<li><a href="#%E4%BB%80%E4%B9%88%E7%AE%97%E5%A4%A7key%E7%83%ADkey">什么算大key，热key？</a>
+<ul>
+<li><a href="#%E5%A4%A7key%E5%AE%9A%E4%B9%89">大key定义</a></li>
+<li><a href="#%E7%83%ADkey%E5%AE%9A%E4%B9%89">热key定义</a></li>
+</ul>
+</li>
+<li><a href="#%E5%A4%A7key%E5%92%8C%E7%83%ADkey%E4%BC%9A%E5%B8%A6%E6%9D%A5%E4%BB%80%E4%B9%88%E9%97%AE%E9%A2%98%E5%91%A2">大key和热key会带来什么问题呢？</a></li>
+<li><a href="#%E5%A6%82%E4%BD%95%E5%8F%91%E7%8E%B0%E5%92%8C%E5%AE%9A%E4%BD%8D%E5%A4%A7key%E5%92%8C%E7%83%ADkey">如何发现和定位大key和热key？</a></li>
+<li><a href="#%E8%AF%A5%E5%A6%82%E4%BD%95%E8%AE%BE%E8%AE%A1%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%BB%A5%E9%81%BF%E5%BC%80%E5%A4%A7key%E5%92%8C%E7%83%ADkey">该如何设计数据结构以避开大Key和热Key？</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://MouseHappy123.github.io/post/bao-gen-wen-di-redis-mian-shi-guo-cheng-zhen-hao-shi/">
+              <h3 class="post-title">
+                刨根问底 Redis， 面试过程真好使
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://MouseHappy123.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

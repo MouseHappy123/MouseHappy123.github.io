@@ -1,0 +1,309 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>nginx连接数排查 | Gridea</title>
+<link rel="shortcut icon" href="https://MouseHappy123.github.io/favicon.ico?v=1685983394252">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://MouseHappy123.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="nginx连接数排查 | Gridea - Atom Feed" href="https://MouseHappy123.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="Error现象
+linux连接socket错误 11: Resource temporarily unavailable
+常见于Redis、MySQL、PHP-fpm这些应用连接socket时出现错误。
+一般系统处于高负载时会出现Error..." />
+    <meta name="keywords" content="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://MouseHappy123.github.io">
+  <img class="avatar" src="https://MouseHappy123.github.io/images/avatar.png?v=1685983394252" alt="">
+  </a>
+  <h1 class="site-title">
+    Gridea
+  </h1>
+  <p class="site-description">
+    温故而知新
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              nginx连接数排查
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-06-06
+              </span>
+              <span>
+                7 min read
+              </span>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="error现象">Error现象</h1>
+<p>linux连接socket错误 11: Resource temporarily unavailable<br>
+常见于Redis、MySQL、PHP-fpm这些应用连接socket时出现错误。</p>
+<p>一般系统处于高负载时会出现Error，导致服务不可用。例如使用Nginx代理时，业务出现502 Bad Gateway，常见如下日志：</p>
+<pre><code>[error] 10615#0: *172810754 connect() to unix:/xxx/www.sock failed (11: Resource temporarily unavailable) while connecting to upstream
+</code></pre>
+<h1 id="定位原因">定位原因</h1>
+<p>系统net.core.somaxconn值过低导致backlog不够用。</p>
+<h1 id="原理">原理</h1>
+<p>net.core.somaxconn是Linux中的一个内核(kernel)参数，表示socket监听(listen)的backlog上限。学习更多：https://www.cnblogs.com/my-show-time/p/15206020.html</p>
+<blockquote>
+<p>对于一个TCP链接，Server与Client需要通过三次握手来建立网络链接，当三次握手成功之后，我们就可以看到端口状态由LISTEN转为ESTABLISHED，接着这条链路上就可以开始传送数据了</p>
+</blockquote>
+<blockquote>
+<p>net.core.somaxconn是Linux中的一个内核(kernel)参数，表示socket监听(listen)的backlog上限。</p>
+</blockquote>
+<blockquote>
+<p>什么是backlog？backlog就是 socket的监听队列，当一个请求(request)尚未被处理或者建立时，它就会进入backlog。</p>
+</blockquote>
+<blockquote>
+<p>而socket server可以一次性处理backlog中的所有请求，处理后的请求不再位于监听队列中。</p>
+</blockquote>
+<blockquote>
+<p>当Server处理请求较慢时，导致监听队列被填满后，新来的请求就会被拒绝。</p>
+</blockquote>
+<blockquote>
+<p>backlog参数主要用于底层方法int listen(int sockfd, int backlog)， 在解释backlog参数之前，我们先了解下tcp在内核的请求过程，其实就是tcp的三次握手：<br>
+<img src="https://img2022.cnblogs.com/blog/1043925/202203/1043925-20220325111920180-564432886.png" alt="" loading="lazy"></p>
+</blockquote>
+<ol>
+<li>client发送SYN到server，将状态修改为SYN_SEND，如果server收到请求，则将状态修改为SYN_RCVD，并把该请求放到syns queue队列中。</li>
+<li>server回复SYN+ACK给client，如果client收到请求，则将状态修改为ESTABLISHED，并发送ACK给server。</li>
+<li>server收到ACK，将状态修改为ESTABLISHED，并把该请求从syns queue中放到accept queue。</li>
+</ol>
+<p>在linux系统内核中维护了两个队列：syns queue和accept queue</p>
+<ul>
+<li>syns queue<br>
+用于保存半连接状态的请求，其大小通过/proc/sys/net/ipv4/tcp_max_syn_backlog指定，一般默认值是512，不过这个设置有效的前提是系统的syncookies功能被禁用。互联网常见的TCP SYN FLOOD恶意DOS攻击方式就是建立大量的半连接状态的请求，然后丢弃，导致syns queue不能保存其它正常的请求。</li>
+<li>accept queue<br>
+用于保存全连接状态的请求，其大小通过/proc/sys/net/core/somaxconn指定，在使用listen函数时，内核会根据传入的backlog参数与系统参数somaxconn，取二者的较小值。</li>
+</ul>
+<p>如果accpet queue队列满了，server将发送一个ECONNREFUSED错误信息Connection refused到client。</p>
+<h1 id="操作系统配置">操作系统配置</h1>
+<p>cat /proc/sys/net/core/somaxconn<br>
+系统内核最大连接数，listen的最大值不能大于somaxconn<br>
+<img src="https://MouseHappy123.github.io/post-images/1685981871353.png" alt="" loading="lazy"><br>
+配置生效方式</p>
+<ol>
+<li>echo 4096 &gt; /proc/sys/net/core/somaxconn</li>
+<li>添加 net.core.somaxconn=4096 到 /etc/sysctl.conf</li>
+</ol>
+<h1 id="nginx配置">nginx配置</h1>
+<p>在 Nginx 中，可以使用 <code>backlog</code> 参数来配置监听队列的长度。<code>backlog</code> 参数用于指定当监听队列已满时，客户端连接的排队等待数量。<br>
+示例配置如下：</p>
+<pre><code class="language-nginx">server {
+    listen 80 backlog=1024;
+    ...
+}
+</code></pre>
+<p>在上述配置中，<code>backlog=1024</code> 表示设置监听队列的长度为 1024。具体的值可以根据实际需求进行调整。请注意，该参数的有效范围取决于操作系统和 Nginx 的版本，具体限制可参考相关文档。</p>
+<p>设置较大的 <code>backlog</code> 值可以在高并发情况下提高连接的处理能力，但同时也会占用更多的系统资源。因此，在设置 <code>backlog</code> 时需要根据服务器的硬件配置、预期的并发连接数和负载情况进行权衡和调整。</p>
+<h1 id="php-fpm配置">php-fpm配置</h1>
+<h2 id="进程数">进程数</h2>
+<p>php-fpm worker进程数<br>
+pm.max_children = 128<br>
+pm.start_servers = 20<br>
+pm.min_spare_servers = 5<br>
+pm.max_spare_servers = 35</p>
+<ul>
+<li>使用说明</li>
+</ul>
+<pre><code>; Choose how the process manager will control the number of child processes.
+; Possible Values:
+;   static  - a fixed number (pm.max_children) of child processes;
+;   dynamic - the number of child processes are set dynamically based on the
+;             following directives. With this process management, there will be
+;             always at least 1 children.
+;             pm.max_children      - the maximum number of children that can
+;                                    be alive at the same time.
+;             pm.start_servers     - the number of children created on startup.
+;             pm.min_spare_servers - the minimum number of children in 'idle'
+;                                    state (waiting to process). If the number
+;                                    of 'idle' processes is less than this
+;                                    number then some children will be created.
+;             pm.max_spare_servers - the maximum number of children in 'idle'
+;                                    state (waiting to process). If the number
+;                                    of 'idle' processes is greater than this
+;                                    number then some children will be killed.
+;  ondemand - no children are created at startup. Children will be forked when
+;             new requests will connect. The following parameter are used:
+;             pm.max_children           - the maximum number of children that
+;                                         can be alive at the same time.
+;             pm.process_idle_timeout   - The number of seconds after which
+;                                         an idle process will be killed.
+; Note: This value is mandatory.
+pm = static
+; The number of child processes to be created when pm is set to 'static' and the
+; maximum number of child processes when pm is set to 'dynamic' or 'ondemand'.
+; This value sets the limit on the number of simultaneous requests that will be
+; served. Equivalent to the ApacheMaxClients directive with mpm_prefork.
+; Equivalent to the PHP_FCGI_CHILDREN environment variable in the original PHP
+; CGI. The below defaults are based on a server without much resources. Don't
+; forget to tweak pm.* to fit your needs.
+; Note: Used when pm is set to 'static', 'dynamic' or 'ondemand'
+; Note: This value is mandatory.
+pm.max_children = 128
+
+; The number of child processes created on startup.
+; Note: Used only when pm is set to 'dynamic'
+; Default Value: min_spare_servers + (max_spare_servers - min_spare_servers) / 2
+pm.start_servers = 20
+
+; The desired minimum number of idle server processes.
+; Note: Used only when pm is set to 'dynamic'
+; Note: Mandatory when pm is set to 'dynamic'
+pm.min_spare_servers = 5
+
+; The desired maximum number of idle server processes.
+; Note: Used only when pm is set to 'dynamic'
+; Note: Mandatory when pm is set to 'dynamic'
+pm.max_spare_servers = 35
+</code></pre>
+<h2 id="最大处理请求数">最大处理请求数</h2>
+<p>最大处理请求数是指一个php-fpm的worker进程在处理多少个请求后就终止掉，master进程会重新respawn一个新的。<br>
+这个配置的主要目的是避免php解释器或程序引用的第三方库造成的内存泄露。<br>
+pm.max_requests = 10000</p>
+<h2 id="最长执行时间">最长执行时间</h2>
+<p>最大执行时间在php.ini和php-fpm.conf里都可以配置，配置项分别为 max_execution_time和request_terminate_timeout。</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#error%E7%8E%B0%E8%B1%A1">Error现象</a></li>
+<li><a href="#%E5%AE%9A%E4%BD%8D%E5%8E%9F%E5%9B%A0">定位原因</a></li>
+<li><a href="#%E5%8E%9F%E7%90%86">原理</a></li>
+<li><a href="#%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E9%85%8D%E7%BD%AE">操作系统配置</a></li>
+<li><a href="#nginx%E9%85%8D%E7%BD%AE">nginx配置</a></li>
+<li><a href="#php-fpm%E9%85%8D%E7%BD%AE">php-fpm配置</a>
+<ul>
+<li><a href="#%E8%BF%9B%E7%A8%8B%E6%95%B0">进程数</a></li>
+<li><a href="#%E6%9C%80%E5%A4%A7%E5%A4%84%E7%90%86%E8%AF%B7%E6%B1%82%E6%95%B0">最大处理请求数</a></li>
+<li><a href="#%E6%9C%80%E9%95%BF%E6%89%A7%E8%A1%8C%E6%97%B6%E9%97%B4">最长执行时间</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://MouseHappy123.github.io/post/go/">
+              <h3 class="post-title">
+                go
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://MouseHappy123.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

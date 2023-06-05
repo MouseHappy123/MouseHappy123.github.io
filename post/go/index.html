@@ -1,0 +1,185 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>go | Gridea</title>
+<link rel="shortcut icon" href="https://MouseHappy123.github.io/favicon.ico?v=1685983394252">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://MouseHappy123.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="go | Gridea - Atom Feed" href="https://MouseHappy123.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="按照值类型和引用类型来划分变量的话，可以参考以下分类：
+值类型（Value Types）：
+
+基本类型：包括 bool、整数类型（int、int8、int16、int32、int64、uint、uint8、uint16、uint32、uin..." />
+    <meta name="keywords" content="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://MouseHappy123.github.io">
+  <img class="avatar" src="https://MouseHappy123.github.io/images/avatar.png?v=1685983394252" alt="">
+  </a>
+  <h1 class="site-title">
+    Gridea
+  </h1>
+  <p class="site-description">
+    温故而知新
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              go
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-06-05
+              </span>
+              <span>
+                2 min read
+              </span>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <p>按照值类型和引用类型来划分变量的话，可以参考以下分类：</p>
+<p>值类型（Value Types）：</p>
+<ul>
+<li>基本类型：包括 bool、整数类型（int、int8、int16、int32、int64、uint、uint8、uint16、uint32、uint64）、浮点数类型（float32、float64）、字符串类型（string）、字符类型（byte、rune）等。</li>
+<li>数组类型：具有固定长度且元素类型相同的数组。</li>
+</ul>
+<p>引用类型（Reference Types）：</p>
+<ul>
+<li>切片类型（Slice）：可变长度的动态数组。</li>
+<li>映射类型（Map）：键值对的集合。</li>
+<li>结构体类型（Struct）：自定义的复合数据类型，包含多个字段。</li>
+<li>接口类型（Interface）：定义了一组方法的抽象类型。</li>
+<li>函数类型（Function）：表示具有特定参数和返回值的函数。</li>
+<li>通道类型（Channel）：用于协程之间的通信。</li>
+</ul>
+<p>在 Golang 中，值类型在赋值、传递参数和作为函数返回值时会进行拷贝，每个拷贝都有独立的内存空间，对其中一个变量的修改不会影响到其他变量。而引用类型则是通过引用（指针）来操作底层的数据，多个变量引用同一块内存空间，对其中一个变量的修改会影响到其他变量。</p>
+<p>需要注意的是，即使是引用类型，在进行赋值操作时仍然是拷贝了一份引用（指针），所以多个变量指向同一个底层数据。这种情况下，对底层数据的修改会影响到所有引用该数据的变量。但如果修改的是引用本身（指针），则不会影响其他变量。</p>
+<p>因此，在 Golang 中，根据变量的类型可以大致判断出它是值类型还是引用类型，从而了解变量在赋值、传递参数和作为函数返回值时的行为和影响。</p>
+
+              </div>
+              <div class="toc-container">
+                
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://MouseHappy123.github.io/post/kafka/">
+              <h3 class="post-title">
+                kafka
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://MouseHappy123.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

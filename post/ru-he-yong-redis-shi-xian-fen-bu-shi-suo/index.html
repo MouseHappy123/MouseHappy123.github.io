@@ -1,0 +1,875 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Redis分布式锁 | Gridea</title>
+<link rel="shortcut icon" href="https://MouseHappy123.github.io/favicon.ico?v=1685983394252">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://MouseHappy123.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="Redis分布式锁 | Gridea - Atom Feed" href="https://MouseHappy123.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="前言
+日常开发中，秒杀下单、抢红包等等业务场景，都需要用到分布式锁。而Redis非常适合作为分布式锁使用。本文将分七个方案展开，跟大家探讨Redis分布式锁的正确使用方式。如果有不正确的地方，欢迎大家指出哈，一起学习一起进步。
+公众号：捡田..." />
+    <meta name="keywords" content="learn" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://MouseHappy123.github.io">
+  <img class="avatar" src="https://MouseHappy123.github.io/images/avatar.png?v=1685983394252" alt="">
+  </a>
+  <h1 class="site-title">
+    Gridea
+  </h1>
+  <p class="site-description">
+    温故而知新
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              Redis分布式锁
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-05-13
+              </span>
+              <span>
+                34 min read
+              </span>
+              
+                <a href="https://MouseHappy123.github.io/tag/learn/" class="post-tag">
+                  # learn
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h3 id="前言">前言</h3>
+<p>日常开发中，秒杀下单、抢红包等等业务场景，都需要用到分布式锁。而Redis非常适合作为分布式锁使用。本文将分七个方案展开，跟大家探讨Redis分布式锁的正确使用方式。如果有不正确的地方，欢迎大家指出哈，一起学习一起进步。</p>
+<p>公众号：<strong>捡田螺的小男孩</strong></p>
+<ul>
+<li>
+<p>什么是分布式锁</p>
+</li>
+<li>
+<p>方案一：SETNX + EXPIRE</p>
+</li>
+<li>
+<p>方案二：SETNX + value值是（系统时间+过期时间）</p>
+</li>
+<li>
+<p>方案三：使用Lua脚本(包含SETNX + EXPIRE两条指令)</p>
+</li>
+<li>
+<p>方案四：SET的扩展命令（SET EX PX NX）</p>
+</li>
+<li>
+<p>方案五：SET EX PX NX + 校验唯一随机值,再释放锁</p>
+</li>
+<li>
+<p>方案六: 开源框架:Redisson</p>
+</li>
+<li>
+<p>方案七：多机实现的分布式锁Redlock</p>
+</li>
+<li>
+<p>github地址，感谢每颗star</p>
+</li>
+</ul>
+<blockquote>
+<p><a href="https://github.com/whx123/JavaHome" title="https://github.com/whx123/JavaHome">github.com/whx123/Java…</a></p>
+</blockquote>
+<h3 id="什么是分布式锁">什么是分布式锁</h3>
+<blockquote>
+<p>分布式锁其实就是，控制分布式系统不同进程共同访问共享资源的一种锁的实现。如果不同的系统或同一个系统的不同主机之间共享了某个临界资源，往往需要互斥来防止彼此干扰，以保证一致性。</p>
+</blockquote>
+<p>我们先来看下，一把靠谱的分布式锁应该有哪些特征：</p>
+<figure data-type="image" tabindex="1"><img src="https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/42884a1613344c11be5fef3b9e8ed7c5~tplv-k3u1fbpfcp-zoom-in-crop-mark:3024:0:0:0.image" alt="" loading="lazy"></figure>
+<ul>
+<li><strong>互斥性</strong>: 任意时刻，只有一个客户端能持有锁。</li>
+<li><strong>锁超时释放</strong>：持有锁超时，可以释放，防止不必要的资源浪费，也可以防止死锁。</li>
+<li><strong>可重入性</strong>:一个线程如果获取了锁之后,可以再次对其请求加锁。</li>
+<li><strong>高性能和高可用</strong>：加锁和解锁需要开销尽可能低，同时也要保证高可用，避免分布式锁失效。</li>
+<li><strong>安全性</strong>：锁只能被持有的客户端删除，不能被其他客户端删除</li>
+</ul>
+<h3 id="redis分布式锁方案一setnx-expire">Redis分布式锁方案一：SETNX + EXPIRE</h3>
+<p>提到Redis的分布式锁，很多小伙伴马上就会想到<code>setnx</code>+ <code>expire</code>命令。即先用<code>setnx</code>来抢锁，如果抢到之后，再用<code>expire</code>给锁设置一个过期时间，防止锁忘记了释放。</p>
+<blockquote>
+<p>SETNX 是SET IF NOT EXISTS的简写.日常命令格式是SETNX key value，如果 key不存在，则SETNX成功返回1，如果这个key已经存在了，则返回0。</p>
+</blockquote>
+<p>假设某电商网站的某商品做秒杀活动，key可以设置为key_resource_id,value设置任意值，伪代码如下：</p>
+<pre><code class="language-csharp">if（jedis.setnx(key_resource_id,lock_value) == 1）{ //加锁
+    expire（key_resource_id，100）; //设置过期时间
+    try {
+        do something  //业务请求
+    }catch(){
+　　}
+　　finally {
+       jedis.del(key_resource_id); //释放锁
+    }
+}
+</code></pre>
+<p>但是这个方案中，<code>setnx</code>和<code>expire</code>两个命令分开了，<strong>不是原子操作</strong>。如果执行完<code>setnx</code>加锁，正要执行<code>expire</code>设置过期时间时，进程crash或者要重启维护了，那么这个锁就“长生不老”了，<strong>别的线程永远获取不到锁啦</strong>。</p>
+<h3 id="redis分布式锁方案二setnx-value值是系统时间过期时间">Redis分布式锁方案二：SETNX + value值是(系统时间+过期时间)</h3>
+<p>为了解决方案一，<strong>发生异常锁得不到释放的场景</strong>，有小伙伴认为，可以把过期时间放到<code>setnx</code>的value值里面。如果加锁失败，再拿出value值校验一下即可。加锁代码如下：</p>
+<pre><code class="language-kotlin">long expires = System.currentTimeMillis() + expireTime; //系统时间+设置的过期时间
+String expiresStr = String.valueOf(expires);
+
+// 如果当前锁不存在，返回加锁成功
+if (jedis.setnx(key_resource_id, expiresStr) == 1) {
+        return true;
+} 
+// 如果锁已经存在，获取锁的过期时间
+String currentValueStr = jedis.get(key_resource_id);
+
+// 如果获取到的过期时间，小于系统当前时间，表示已经过期
+if (currentValueStr != null &amp;&amp; Long.parseLong(currentValueStr) &lt; System.currentTimeMillis()) {
+
+     // 锁已过期，获取上一个锁的过期时间，并设置现在锁的过期时间（不了解redis的getSet命令的小伙伴，可以去官网看下哈）
+    String oldValueStr = jedis.getSet(key_resource_id, expiresStr);
+    
+    if (oldValueStr != null &amp;&amp; oldValueStr.equals(currentValueStr)) {
+         // 考虑多线程并发的情况，只有一个线程的设置值和当前值相同，它才可以加锁
+         return true;
+    }
+}
+        
+//其他情况，均返回加锁失败
+return false;
+}
+</code></pre>
+<p>这个方案的优点是，巧妙移除<code>expire</code>单独设置过期时间的操作，把<strong>过期时间放到setnx的value值</strong>里面来。解决了方案一发生异常，锁得不到释放的问题。但是这个方案还有别的缺点：</p>
+<blockquote>
+<ul>
+<li>过期时间是客户端自己生成的（System.currentTimeMillis()是当前系统的时间），必须要求分布式环境下，每个客户端的时间必须同步。</li>
+<li>如果锁过期的时候，并发多个客户端同时请求过来，都执行jedis.getSet()，最终只能有一个客户端加锁成功，但是该客户端锁的过期时间，可能被别的客户端覆盖</li>
+<li>该锁没有保存持有者的唯一标识，可能被别的客户端释放/解锁。</li>
+</ul>
+</blockquote>
+<h3 id="redis分布式锁方案三使用lua脚本包含setnx-expire两条指令">Redis分布式锁方案三：使用Lua脚本(包含SETNX + EXPIRE两条指令)</h3>
+<p>实际上，我们还可以使用Lua脚本来保证原子性（包含setnx和expire两条指令），lua脚本如下：</p>
+<pre><code class="language-vbnet">if redis.call('setnx',KEYS[1],ARGV[1]) == 1 then
+   redis.call('expire',KEYS[1],ARGV[2])
+else
+   return 0
+end;
+</code></pre>
+<p>加锁代码如下：</p>
+<pre><code class="language-ini"> String lua_scripts = &quot;if redis.call('setnx',KEYS[1],ARGV[1]) == 1 then&quot; +
+            &quot; redis.call('expire',KEYS[1],ARGV[2]) return 1 else return 0 end&quot;;   
+Object result = jedis.eval(lua_scripts, Collections.singletonList(key_resource_id), Collections.singletonList(values));
+//判断是否成功
+return result.equals(1L);
+</code></pre>
+<p>这个方案还是有缺点的哦，至于哪些缺点，你先思考一下。也可以想下。跟方案二对比，哪个更好？</p>
+<h3 id="redis分布式锁方案方案四set的扩展命令set-ex-px-nx">Redis分布式锁方案方案四：SET的扩展命令（SET EX PX NX）</h3>
+<p>除了使用，使用Lua脚本，保证<code>SETNX + EXPIRE</code>两条指令的原子性，我们还可以巧用Redis的SET指令扩展参数！（<code>SET key value[EX seconds][PX milliseconds][NX|XX]</code>），它也是原子性的！（v2.6.12实现的）</p>
+<blockquote>
+<p>SET key value[EX seconds][PX milliseconds][NX|XX]</p>
+<ul>
+<li>NX :表示key不存在的时候，才能set成功，也即保证只有第一个客户端请求才能获得锁，而其他客户端请求只能等其释放锁，才能获取。</li>
+<li>EX seconds :设定key的过期时间，时间单位是秒。</li>
+<li>PX milliseconds: 设定key的过期时间，单位为毫秒</li>
+<li>XX: 仅当key存在时设置值</li>
+</ul>
+</blockquote>
+<p>伪代码demo如下：</p>
+<pre><code class="language-csharp">if（jedis.set(key_resource_id, lock_value, &quot;NX&quot;, &quot;EX&quot;, 100s) == 1）{ //加锁
+    try {
+        do something  //业务处理
+    }catch(){
+　　}
+　　finally {
+       jedis.del(key_resource_id); //释放锁
+    }
+}
+</code></pre>
+<p>但是呢，这个方案还是可能存在问题：</p>
+<ul>
+<li>问题一：<strong>锁过期释放了，业务还没执行完</strong>。假设线程a获取锁成功，一直在执行临界区的代码。但是100s过去后，它还没执行完。但是，这时候锁已经过期了，此时线程b又请求过来。显然线程b就可以获得锁成功，也开始执行临界区的代码。那么问题就来了，临界区的业务代码都不是严格串行执行的啦。</li>
+<li>问题二：<strong>锁被别的线程误删</strong>。假设线程a执行完后，去释放锁。但是它不知道当前的锁可能是线程b持有的（线程a去释放锁时，有可能过期时间已经到了，此时线程b进来占有了锁）。那线程a就把线程b的锁释放掉了，但是线程b临界区业务代码可能都还没执行完呢。</li>
+</ul>
+<h3 id="方案五set-ex-px-nx-校验唯一随机值再删除">方案五：SET EX PX NX + 校验唯一随机值,再删除</h3>
+<p>既然锁可能被别的线程误删，那我们给value值设置一个标记当前线程唯一的随机数，在删除的时候，校验一下，不就OK了嘛。伪代码如下：</p>
+<pre><code class="language-csharp">if（jedis.set(key_resource_id, uni_request_id, &quot;NX&quot;, &quot;EX&quot;, 100s) == 1）{ //加锁
+    try {
+        do something  //业务处理
+    }catch(){
+　　}
+　　finally {
+       //判断是不是当前线程加的锁,是才释放
+       if (uni_request_id.equals(jedis.get(key_resource_id))) {
+        jedis.del(lockKey); //释放锁
+        }
+    }
+}
+</code></pre>
+<p>在这里，<strong>判断是不是当前线程加的锁</strong>和<strong>释放锁</strong>不是一个原子操作。如果调用jedis.del()释放锁的时候，可能这把锁已经不属于当前客户端，会解除他人加的锁。</p>
+<figure data-type="image" tabindex="2"><img src="https://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/9237655e6b1a47038d2774231e507e11~tplv-k3u1fbpfcp-zoom-in-crop-mark:3024:0:0:0.image" alt="" loading="lazy"></figure>
+<p>为了更严谨，一般也是用lua脚本代替。lua脚本如下：</p>
+<pre><code class="language-vbnet">if redis.call('get',KEYS[1]) == ARGV[1] then 
+   return redis.call('del',KEYS[1]) 
+else
+   return 0
+end;
+</code></pre>
+<h3 id="redis分布式锁方案六redisson框架">Redis分布式锁方案六：Redisson框架</h3>
+<p>方案五还是可能存在<strong>锁过期释放，业务没执行完</strong>的问题。有些小伙伴认为，稍微把锁过期时间设置长一些就可以啦。其实我们设想一下，是否可以给获得锁的线程，开启一个定时守护线程，每隔一段时间检查锁是否还存在，存在则对锁的过期时间延长，防止锁过期提前释放。</p>
+<p>当前开源框架Redisson解决了这个问题。我们一起来看下Redisson底层原理图吧：</p>
+<figure data-type="image" tabindex="3"><img src="https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/367cd1a7a3fb4d398988e4166416d71d~tplv-k3u1fbpfcp-zoom-in-crop-mark:3024:0:0:0.image" alt="" loading="lazy"></figure>
+<p>只要线程一加锁成功，就会启动一个<code>watch dog</code>看门狗，它是一个后台线程，会每隔10秒检查一下，如果线程1还持有锁，那么就会不断的延长锁key的生存时间。因此，Redisson就是使用Redisson解决了<strong>锁过期释放，业务没执行完</strong>问题。</p>
+<h3 id="redis分布式锁方案七多机实现的分布式锁redlockredisson">Redis分布式锁方案七：多机实现的分布式锁Redlock+Redisson</h3>
+<p>前面六种方案都只是基于单机版的讨论，还不是很完美。其实Redis一般都是集群部署的：</p>
+<figure data-type="image" tabindex="4"><img src="https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/7349794feeee458aa71c27f27a0b2428~tplv-k3u1fbpfcp-zoom-in-crop-mark:3024:0:0:0.image" alt="" loading="lazy"></figure>
+<p>如果线程一在Redis的master节点上拿到了锁，但是加锁的key还没同步到slave节点。恰好这时，master节点发生故障，一个slave节点就会升级为master节点。线程二就可以获取同个key的锁啦，但线程一也已经拿到锁了，锁的安全性就没了。</p>
+<p>为了解决这个问题，Redis作者 antirez提出一种高级的分布式锁算法：Redlock。Redlock核心思想是这样的：</p>
+<blockquote>
+<p>搞多个Redis master部署，以保证它们不会同时宕掉。并且这些master节点是完全相互独立的，相互之间不存在数据同步。同时，需要确保在这多个master实例上，是与在Redis单实例，使用相同方法来获取和释放锁。</p>
+</blockquote>
+<p>我们假设当前有5个Redis master节点，在5台服务器上面运行这些Redis实例。</p>
+<figure data-type="image" tabindex="5"><img src="https://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/0df0a36c7ccd439291a8a869ff4ddad3~tplv-k3u1fbpfcp-zoom-in-crop-mark:3024:0:0:0.image" alt="" loading="lazy"></figure>
+<p>RedLock的实现步骤:如下</p>
+<blockquote>
+<ul>
+<li>1.获取当前时间，以毫秒为单位。</li>
+<li>2.按顺序向5个master节点请求加锁。客户端设置网络连接和响应超时时间，并且超时时间要小于锁的失效时间。（假设锁自动失效时间为10秒，则超时时间一般在5-50毫秒之间,我们就假设超时时间是50ms吧）。如果超时，跳过该master节点，尽快去尝试下一个master节点。</li>
+<li>3.客户端使用当前时间减去开始获取锁时间（即步骤1记录的时间），得到获取锁使用的时间。当且仅当超过一半（N/2+1，这里是5/2+1=3个节点）的Redis master节点都获得锁，并且使用的时间小于锁失效时间时，锁才算获取成功。（如上图，10s&gt; 30ms+40ms+50ms+4m0s+50ms）</li>
+<li>如果取到了锁，key的真正有效时间就变啦，需要减去获取锁所使用的时间。</li>
+<li>如果获取锁失败（没有在至少N/2+1个master实例取到锁，有或者获取锁时间已经超过了有效时间），客户端要在所有的master节点上解锁（即便有些master节点根本就没有加锁成功，也需要解锁，以防止有些漏网之鱼）。</li>
+</ul>
+</blockquote>
+<p>简化下步骤就是：</p>
+<ul>
+<li>按顺序向5个master节点请求加锁</li>
+<li>根据设置的超时时间来判断，是不是要跳过该master节点。</li>
+<li>如果大于等于三个节点加锁成功，并且使用的时间小于锁的有效期，即可认定加锁成功啦。</li>
+<li>如果获取锁失败，解锁！</li>
+</ul>
+<p>Redisson实现了redLock版本的锁，有兴趣的小伙伴，可以去了解一下哈~</p>
+<h3 id="公众号">公众号</h3>
+<ul>
+<li>欢迎关注公众号：捡田螺的小男孩</li>
+</ul>
+<h3 id="参考与感谢">参考与感谢</h3>
+<ul>
+<li><a href="https://juejin.cn/post/6844903656911798285" title="https://juejin.cn/post/6844903656911798285">redis系列：分布式锁</a></li>
+<li><a href="https://www.infoq.cn/article/dvaaj71f4fbqsxmgvdce" title="https://www.infoq.cn/article/dvaaj71f4fbqsxmgvdce">浅析 Redis 分布式锁解决方案</a></li>
+<li><a href="https://juejin.cn/post/6844904082860146695#heading-3" title="https://juejin.cn/post/6844904082860146695#heading-3">细说Redis分布式锁🔒</a></li>
+<li><a href="https://mp.weixin.qq.com/s?__biz=MzU5ODUwNzY1Nw==&amp;mid=2247484155&amp;idx=1&amp;sn=0c73f45f2f641ba0bf4399f57170ac9b&amp;scene=21#wechat_redirect" title="https://mp.weixin.qq.com/s?__biz=MzU5ODUwNzY1Nw==&amp;mid=2247484155&amp;idx=1&amp;sn=0c73f45f2f641ba0bf4399f57170ac9b&amp;scene=21#wechat_redirect">Redlock：Redis分布式锁最牛逼的实现</a></li>
+</ul>
+<h3 id="解决redis主从架构导致的分布式锁失效问题">解决Redis主从架构导致的分布式锁失效问题</h3>
+<p><a href="https://juejin.cn/post/7038473714970656775#heading-14">分布式锁</a></p>
+<ul>
+<li>①红锁算法：多台独立的Redis同时写入数据，锁失效时间之内，一半以上的机器写成功则返回获取锁成功，否则返回获取锁失败，失败时会释放掉那些成功的机器上的锁。
+<ul>
+<li>优点：可以完美解决掉主从架构带来的锁失效问题</li>
+<li>缺点：成本高，需要线上部署多台独立的Redis节点</li>
+<li>这种算法是Redis官方提出的解决方案：<a href="https://redis.io/topics/distlock" title="https://redis.io/topics/distlock">红锁算法</a></li>
+</ul>
+</li>
+<li>②额外记录锁状态：再通过额外的中间件等独立部署的节点记录锁状态，比如在DB中记录锁状态，在尝试获取分布式锁之前需先查询DB中的锁持有记录，如果还在持有则继续阻塞，只有当状态为未持有时再尝试获取分布式锁。
+<ul>
+<li>优点：可以依赖于项目中现有的节点实现，节约部署成本</li>
+<li>缺点：
+<ul>
+<li>实现需要配合定时器实现过期失效，保证锁的合理失效机制</li>
+<li>获取锁的性能方面堪忧，会大大增加获取锁的性能开销</li>
+<li>所有过程都需自己实现，实现难度比较复杂</li>
+</ul>
+</li>
+<li>总结：这种方式类似于两把分布式锁叠加实现，先获取一把后再获取另一把</li>
+</ul>
+</li>
+<li>③Zookeeper实现：使用Zookeeper代替Redis实现，因为Zookeeper追求的是高稳定，所以Zookeeper实现分布式锁时，不会出现这个问题</li>
+</ul>
+<h3 id="redisson框架中的分布式锁">Redisson框架中的分布式锁</h3>
+<blockquote>
+<p>Redisson是用Java语言编写的。它是一个基于Redis的分布式Java对象和服务框架，提供了丰富的功能和API来简化分布式应用程序的开发。</p>
+</blockquote>
+<p>在上述的内容中，曾从分布式锁的引出到自己实现的每个细节问题进行了分析，但实际开发过程中并不需要我们自己去实现，因为自己实现的分布式锁多多少少会存在一些隐患问题。而这些工作实际已经有框架封装了，比如：<a href="https://redisson.org/" title="https://redisson.org">Redisson框架</a>，其内部已经基于redis为我们封装好了分布式锁，开发过程中屏蔽了底层处理，让我们能够像使用<code>ReetrantLock</code>一样使用分布式锁，如下：</p>
+<pre><code class="language-xml">/* ---------pom.xml文件-------- */
+&lt;dependency&gt;
+    &lt;groupId&gt;org.redisson&lt;/groupId&gt;
+    &lt;artifactId&gt;redisson&lt;/artifactId&gt;
+    &lt;version&gt;3.8.2&lt;/version&gt;
+&lt;/dependency&gt;
+</code></pre>
+<pre><code class="language-yml">/* ---------application.yml文件-------- */
+spring:
+    redis:
+      database: 0
+      host: 192.168.12.130
+      port: 6379
+      password: 123456
+      timeout: 2m
+</code></pre>
+<pre><code class="language-java">// 注入redisson的客户端
+@Autowired
+private RedissonClient redisson;
+
+// 写入redis的key值
+String lockKey = &quot;lock-&quot; + inventory.getInventoryId();
+// 获取一个Rlock锁对象
+RLock lock = redisson.getLock(lockKey);
+// 获取锁，并为其设置过期时间为10s
+lock.lock(10,TimeUnit.SECONDS);
+try{
+    // 执行业务逻辑....
+} finally {
+    // 释放锁
+    lock.unlock();
+}
+/* ---------RedissonClient配置类-------- */      
+@Configuration
+public class RedissonConfig {
+    // 读取配置文件中的配置信息
+    @Value(&quot;${spring.redis.host}&quot;)
+    private String host;
+    @Value(&quot;${spring.redis.port}&quot;)
+    private String port;
+    @Value(&quot;${spring.redis.password}&quot;)
+    private String password;
+
+    // 注入RedissonClient的Bean交由Spring管理
+    @Bean
+    public RedissonClient redisson() {
+        //单机模式
+        Config config = new Config();
+        config.useSingleServer().
+            setAddress(&quot;redis://&quot; + host + &quot;:&quot; + port).
+            setPassword(password).setDatabase(0);
+        return Redisson.create(config);
+    }
+}
+</code></pre>
+<p>如上源码，即可获得一把最基本的分布式锁，同时除开最基本的加锁方法外，还支持其他形式的获取锁：</p>
+<ul>
+<li><code>lock.tryLock(20,10,TimeUnit.SECONDS)</code>：非阻塞式获取锁，在获取锁失败后的20s内一直尝试重新获取锁，超出20s则直接返回获取锁失败</li>
+<li><code>lock.lockAsync(10,TimeUnit.SECONDS)</code>：异步阻塞式获取锁，可以支持异步获取加锁的结果，该方法会返回一个<code>Future</code>对象，可通过<code>Future</code>对象异步获取加锁结果</li>
+<li><code>lock.tryLockAsync(20,10,TimeUnit.SECONDS)</code>：异步非阻塞式获取锁，比上面那个多了一个超时时间</li>
+</ul>
+<p>同时Redisson框架中的锁实现还不仅仅只有一种，如下：</p>
+<ul>
+<li>FairLock公平锁：与<code>ReetrantLock</code>一样，支持创建公平锁，即先到的线程一定优化获取锁</li>
+<li>MultiLock连锁：多个<code>RLock</code>对象组成一把锁，也就是几把锁组成的一把锁，可以用来实现红锁算法，因为<code>RLock</code>对象可以不是一个<code>Redisson</code>创建出来的，也就是可以使用多个Redis客户端的连接对象获取多把锁组成连锁，只有当所有个锁获取成功后，才能返回获取锁成功，如果获取一把个锁失败，则返回获取锁失败</li>
+<li>RedLock红锁：和前面分析的Redis官方给出的红锁算法实现一致，继承了连锁，主要用于解决主从架构锁失效的问题</li>
+</ul>
+<h3 id="redisson框架中的连锁分析">Redisson框架中的连锁分析</h3>
+<p>连锁向上继承了<code>RLock</code>，向下为<code>RedLock</code>提供了实现，所以它是Redisson框架中最为关键的一种锁，先来看看它的使用方式：</p>
+<pre><code class="language-java">// 获取多个RLock锁对象（redisson可以是不同的客户端）
+RLock lock1 = redisson.getLock(&quot;lock-1&quot;);
+RLock lock2 = redisson.getLock(&quot;lock-2&quot;);
+RLock lock3 = redisson.getLock(&quot;lock-3&quot;);
+
+// 将多把锁组合成一把连锁，通过连锁进行获取锁与释放锁操作
+RedissonMultiLock lock = new RedissonMultiLock(lock1,lock2,lock3);
+// 获取锁：一半以上的锁获取成功才能成功，反之删除写入成功的节点数据
+lock.lock();
+// 释放锁
+lock.unlock();
+</code></pre>
+<p>使用方式并不难理解，只需要创建多个<code>RLock</code>锁对象后，再通过多个锁对象组和成一把连锁，通过连锁对象进行获取锁与释放锁的操作即可。</p>
+<h3 id="redisson框架中的连锁源码实现分析">Redisson框架中的连锁源码实现分析</h3>
+<p>OK~，上面简单的给出了<code>MultiLock</code>连锁的使用方式，接下来重点分析一下它的源码实现，源码如下：</p>
+<pre><code class="language-java">// RedissonMultiLock类 → lock()方法
+public void lock() {
+    try {
+        // 调用了lockInterruptibly获取锁
+        this.lockInterruptibly();
+    } catch (InterruptedException var2) {
+        // 如果出现异常则中断当前线程
+        Thread.currentThread().interrupt();
+    }
+}
+
+// RedissonMultiLock类 → lockInterruptibly()方法
+public void lockInterruptibly() throws InterruptedException {
+    // 这里传入了-1
+    this.lockInterruptibly(-1L, (TimeUnit)null);
+}
+
+// RedissonMultiLock类 → lockInterruptibly()重载方法
+public void lockInterruptibly(long leaseTime, TimeUnit unit)
+                throws InterruptedException {
+    // 计算基础阻塞时间：使用锁的个数*1500ms。
+    // 比如之前的案例：3*1500=4500ms
+    long baseWaitTime = (long)(this.locks.size() * 1500);
+    long waitTime = -1L;
+    // 前面传入了-1，所以进入的是if分支
+    if (leaseTime == -1L) {
+        // 挂起时间为4500，单位毫秒（MS）
+        waitTime = baseWaitTime;
+        unit = TimeUnit.MILLISECONDS;
+    } 
+    // 这里是对于外部获取锁时，指定了时间情况时的处理逻辑
+    else {
+        // 将外部传入的时间转换为毫秒值
+        waitTime = unit.toMillis(leaseTime);
+        // 如果外部给定的时间小于2000ms，那么赋值为2s
+        if (waitTime &lt;= 2000L) {
+            waitTime = 2000L;
+        } 
+        // 如果传入的时间小于前面计算出的基础时间
+        else if (waitTime &lt;= baseWaitTime) {
+            // 获取基础时间的一半，如baseWaitTime=4500ms，waitTime=2250ms
+            waitTime = ThreadLocalRandom.current().
+                nextLong(waitTime / 2L, waitTime);
+        } else {
+            // 如果外部给定的时间大于前面计算出的基础时间会进这里
+            // 将基础时间作为阻塞时长
+            waitTime = ThreadLocalRandom.current().
+                nextLong(baseWaitTime, waitTime);
+        }
+        // 最终计算出挂起的时间
+        waitTime = unit.convert(waitTime, TimeUnit.MILLISECONDS);
+    }
+    // 自旋尝试获取锁，直至获取锁成功
+    while(!this.tryLock(waitTime, leaseTime, unit)) {
+        ;
+    }
+}
+</code></pre>
+<p>上述源码中，实际上不难理解，比之前文章中分析的JUC的源码可读性强很多，上述代码中，简单的计算了一下时间后，最终自旋调用了<code>tryLock</code>获取锁的方法一直尝试获取锁。接着来看看<code>tryLock</code>方法：</p>
+<pre><code class="language-java">// RedissonMultiLock类 → tryLock()方法
+public boolean tryLock(long waitTime, long leaseTime,
+        TimeUnit unit) throws InterruptedException {
+    long newLeaseTime = -1L;
+    // 如果外部获取锁时，给定了过期时间
+    if (leaseTime != -1L) {
+        // 将newLeaseTime变为给定时间的两倍
+        newLeaseTime = unit.toMillis(waitTime) * 2L;
+    }
+    
+    // 获取当前时间
+    long time = System.currentTimeMillis();
+    long remainTime = -1L;
+    // 如果不是非阻塞式获取锁
+    if (waitTime != -1L) {
+        // 将过期时间改为用户给定的时间
+        remainTime = unit.toMillis(waitTime);
+    }
+    // 该方法是空实现，留下的拓展接口，直接返回了传入的值
+    long lockWaitTime = this.calcLockWaitTime(remainTime);
+    // 返回0，也是拓展接口，留给子类拓展的，红锁中就拓展了这两方法
+    // 这个变量是允许失败的最大次数，红锁中为个数的一半
+    int failedLocksLimit = this.failedLocksLimit();
+    // 获取组成连锁的所有RLock锁集合
+    List&lt;RLock&gt; acquiredLocks = new ArrayList(this.locks.size());
+    // 获取list的迭代器对象
+    ListIterator iterator = this.locks.listIterator();
+    
+    // 通过List的迭代器遍历整个连锁集合
+    while(iterator.hasNext()) {
+        RLock lock = (RLock)iterator.next();
+        
+        boolean lockAcquired;
+        // 尝试获取锁
+        try {
+            // 如果是非阻塞式获取锁
+            if (waitTime == -1L &amp;&amp; leaseTime == -1L) {
+                // 直接尝试获取锁
+                lockAcquired = lock.tryLock();
+            } else {
+                // 比较阻塞时间和过期时间的大小
+                long awaitTime = Math.min(lockWaitTime, remainTime);
+                // 尝试重新获取锁
+                lockAcquired = lock.tryLock(awaitTime, 
+                    newLeaseTime, TimeUnit.MILLISECONDS);
+            }
+        // 如果redis连接中断/关闭了
+        } catch (RedisConnectionClosedException var21) {
+            // 回滚获取成功的锁（删除写入成功的key）
+            this.unlockInner(Arrays.asList(lock));
+            lockAcquired = false;
+        // 如果在给定时间内未获取到锁
+        } catch (RedisResponseTimeoutException var22) {
+            // 也回滚所有获取成功的个锁
+            this.unlockInner(Arrays.asList(lock));
+            lockAcquired = false;
+        } catch (Exception var23) {
+            // 如果是其他原因导致的，则直接返回获取锁失败
+            lockAcquired = false;
+        }
+        
+        // 如果获取一把个锁成功
+        if (lockAcquired) {
+            // 那么则记录获取成功的个锁
+            acquiredLocks.add(lock);
+        } else {
+            // 如果获取一把个锁失败，此次失败的次数已经达到了
+            // 最大的失败次数，那么直接退出循环，放弃加锁操作
+            if (this.locks.size() - acquiredLocks.size() 
+                == this.failedLocksLimit()) {
+                break;
+            }
+            // 允许失败的次数未0，获取一个个锁失败则回滚
+            if (failedLocksLimit == 0) {
+                // 回滚所有成功的锁 
+                this.unlockInner(acquiredLocks);
+                // 如果是非阻塞式获取锁，则直接返回获取锁失败
+                if (waitTime == -1L &amp;&amp; leaseTime == -1L) {
+                    return false;
+                }
+                // 获取最新的失败锁的个数
+                failedLocksLimit = this.failedLocksLimit();
+                acquiredLocks.clear();
+                // 移动迭代器的指针位置到上一个
+                while(iterator.hasPrevious()) {
+                    iterator.previous();
+                }
+            
+            // 如果允许失败的次数不为0
+            } else {
+                // 每获取个锁失败一次就减少一个数
+                --failedLocksLimit;
+            }
+        }
+        // 如果不是非阻塞式获取锁
+        if (remainTime != -1L) {
+            // 计算本次获取锁的所耗时长
+            remainTime -= System.currentTimeMillis() - time;
+            time = System.currentTimeMillis();
+            // 如果已经超出了给定时间，则回滚所有成功的锁
+            if (remainTime &lt;= 0L) {
+                this.unlockInner(acquiredLocks);
+                // 返回获取锁失败
+                return false;
+            }
+        }
+    }
+    
+    // 能执行到这里肯定是已经获取锁成功了
+    // 判断是否设置了过期时间，如果设置了
+    if (leaseTime != -1L) {
+        // 获取加锁成功的个锁集合
+        List&lt;RFuture&lt;Boolean&gt;&gt; futures = new ArrayList(acquiredLocks.size());
+        Iterator var25 = acquiredLocks.iterator();
+
+        // 迭代为每个获取成功的个锁创建异步任务对象
+        while(var25.hasNext()) {
+            RLock rLock = (RLock)var25.next();
+            RFuture&lt;Boolean&gt; future =
+                rLock.expireAsync(unit.toMillis(leaseTime),
+                TimeUnit.MILLISECONDS);
+            futures.add(future);
+        }
+        // 获取Future的个锁集合迭代器对象
+        var25 = futures.iterator();
+        
+        // 迭代每个Futrue对象
+        while(var25.hasNext()) {
+            RFuture&lt;Boolean&gt; rFuture = (RFuture)var25.next();
+            // 异步为每个获取个锁成功的对象设置过期时间
+            rFuture.syncUninterruptibly();
+        }
+    }
+    // 返回获取锁成功
+    return true;
+}
+</code></pre>
+<p>如上源码，流程先不分析，先感慨一句：虽然看着长，但！！！真心的比JUC中的源码可读性和易读性高N倍，每句代码都容易弄懂，阅读起来并不算费劲。<br>
+OK~，感慨完之后来总结一下<code>tryLock</code>加锁方法的总体逻辑：</p>
+<ul>
+<li>①计算出阻塞时间、最大失败数以及过期时间，然后获取所有组成连锁的个锁集合</li>
+<li>②迭代每把个锁，尝试对每把个锁进行加锁，加锁是也会判断获取锁的方式是否为非阻塞式的：
+<ul>
+<li>是：直接获取锁</li>
+<li>否：阻塞式获取锁，在给定时间内会不断尝试获取锁</li>
+</ul>
+</li>
+<li>③判断个锁是否获取成功：
+<ul>
+<li>成功：将获取成功的个锁添加到加锁成功的集合<code>acquiredLocks</code>集合中</li>
+<li>失败：判断此次获取锁失败的次数是否已经达到了允许的最大失败次数：
+<ul>
+<li>是：放弃获取锁，回滚所有获取成功的锁，返回获取锁失败</li>
+<li>否：允许失败次数自减，继续尝试获取下一把个锁</li>
+<li>注意：连锁模式下最大失败次数=0，红锁模式下为个锁数量的一半</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>④判断目前获取锁过程的耗时是否超出了给定的阻塞时长：
+<ul>
+<li>是：回滚所有获取成功的锁，然后返回获取锁失败</li>
+<li>否：继续获取下把个锁</li>
+</ul>
+</li>
+<li>⑤如果连锁获取成功(代表所有个都锁获取成功)，判断是否指定了过期时间：
+<ul>
+<li>是：异步为每个加锁成功的个锁设置过期时间并返回获取锁成功</li>
+<li>否：直接返回获取锁成功</li>
+</ul>
+</li>
+</ul>
+<p>虽然获取锁的代码看着长，但其逻辑并不算复杂，上述过程是连锁的实现，而红锁则是依赖于连锁实现的，也比较简单，只是重写<code>failedLocksLimit()</code>获取允许失败次数的方法，允许获取锁失败的次数变为了个锁数量的一半以及略微加了一些小拓展，感兴趣的可以自己去分析其实现。</p>
+<p>接着来看看释放锁的源码实现：</p>
+<pre><code class="language-java">// RedissonMultiLock类 → unlock()方法
+@Override
+public void unlock() {
+    // 创建为没把个锁创建一个Future
+    List&lt;RFuture&lt;Void&gt;&gt; futures = new
+        ArrayList&lt;RFuture&lt;Void&gt;&gt;(locks.size());
+    // 遍历所有个锁
+    for (RLock lock : locks) {
+        // 释放锁
+        futures.add(lock.unlockAsync());
+    }
+    // 阻塞等待所有锁释放成功后再返回
+    for (RFuture&lt;Void&gt; future : futures) {
+        future.syncUninterruptibly();
+    }
+}
+
+// RedissonMultiLock类 → unlockInnerAsync()方法
+protected RFuture&lt;Boolean&gt; unlockInnerAsync(long threadId) {
+    // 获取个锁的Key名称并通过Lua脚本释放锁（确保原子性）
+    return commandExecutor.evalWriteAsync(getName(), 
+        LongCodec.INSTANCE, RedisCommands.EVAL_BOOLEAN,
+        &quot;if (redis.call('exists', KEYS[1]) == 0) then &quot; +
+            &quot;redis.call('publish', KEYS[2], ARGV[1]); &quot; +
+            &quot;return 1; &quot; +
+        &quot;end;&quot; +
+        &quot;if (redis.call('hexists', KEYS[1], ARGV[3]) == 0) then &quot; +
+            &quot;return nil;&quot; +
+        &quot;end; &quot; +
+        &quot;local counter = redis.call('hincrby', KEYS[1], ARGV[3], -1); &quot; +
+        &quot;if (counter &gt; 0) then &quot; +
+            &quot;redis.call('pexpire', KEYS[1], ARGV[2]); &quot; +
+            &quot;return 0; &quot; +
+        &quot;else &quot; +
+            &quot;redis.call('del', KEYS[1]); &quot; +
+            &quot;redis.call('publish', KEYS[2], ARGV[1]); &quot; +
+            &quot;return 1; &quot;+
+        &quot;end; &quot; +
+        &quot;return nil;&quot;,
+        Arrays.&lt;Object&gt;asList(getName(), getChannelName()),
+        LockPubSub.unlockMessage, internalLockLeaseTime,
+        getLockName(threadId));
+}
+</code></pre>
+<p>释放锁的逻辑更加简单，遍历所有的个锁，然后异步通过Lua脚本删除所有的<code>key</code>，在连锁的释放代码中会同步阻塞等待所有锁的<code>Key</code>删除后再返回。</p>
+<h3 id="zookeeper实现分布式锁剖析">Zookeeper实现分布式锁剖析</h3>
+<p>Zookeeper分布式锁是依赖于其内部的顺序临时节点实现的，其原理就类似于最开始举例的那个文件夹分布式锁，</p>
+<blockquote>
+<p>我们只需要找一个多个进程之间所有线程可见的区域实现这个互斥量即可。<br>
+比如：在一台服务器的同一路径下创建一个文件夹。获取锁操作则是创建文件夹，反之，释放锁的逻辑则是删除文件夹，这样可以很好的实现一把分布式锁，因为OS特性规定，在同一路径下，相同名字的文件夹只能创建一个。所以当两条线程同时执行获取锁逻辑时，永远只会有一条线程创建成功，成功创建文件夹的那条线程则代表获取锁成功，那么可以去执行业务逻辑。当这条线程执行完业务后，再删除掉文件夹，代表释放锁，以便于其他线程可以再次获取锁。</p>
+</blockquote>
+<p>因为Zookeeper实际上就类似于一个文件系统的结构。我们可以通过<a href="https://curator.apache.org/" title="https://curator.apache.org/">Curator</a>框架封装的API操作Zookeeper，完成分布式锁的实现。如下：</p>
+<pre><code class="language-java">// 创建分布式锁对象
+InterProcessMutex lock = InterProcessMutex(client,
+    &quot;/locks/distributed_商品ID&quot;);
+lock.acquire(); // 获取锁/加锁
+
+// 执行业务逻辑...
+
+lock.release(); // 释放锁
+</code></pre>
+<p>如上，通过Curator实现分布式锁非常简单，因为已经封装好了API，所以应用起来也非常方便，同时Zookeeper也可以实现公平锁与非公平锁两种方案，如下：</p>
+<ul>
+<li>公平锁：先请求锁的线程一定先获取锁
+<ul>
+<li>实现方式：通过临时顺序节点实现，每条线程请求锁时为其创建一个有序节点，创建完成之后判断自己创建的节点是不是最小的，如果是则直接获取锁成功，反之获取锁失败，创建一个监听器，监听自己节点的前一个节点状态，当前一个节点被删除（代表前一个节点的创建线程释放了锁）自己尝试获取锁</li>
+<li>优劣势：可以保证请求获取锁的有序性，但性能方面比非公平锁低</li>
+</ul>
+</li>
+<li>非公平锁：先请求锁的线程不一定先获取锁
+<ul>
+<li>实现方式：多条线程在同一目录下，同时创建一个名字相同的节点，谁创建成功代表获取锁成功，反之则代表获取锁失败</li>
+<li>优劣势：性能良好，但无法保证请求获取锁时的有序性</li>
+</ul>
+</li>
+</ul>
+<p>对于这两种实现方式，非公平锁的方案与前面的<code>Redis</code>实现差不多，所以不再分析。下面重点来分析一下Zookeeper实现分布式的公平锁的大致原理。但在分析之前先简单说明一些Zookeeper中会用到的概念。如下：</p>
+<ul>
+<li>节点类型：
+<ul>
+<li>①持久节点：被创建后会一直存在的节点信息，除非有删除操作主动清楚才会销毁</li>
+<li>②持久顺序节点：持久节点的有序版本，每个新创建的节点会在后面维护自增值保持先后顺序，可以用于实现分布式全局唯一ID</li>
+<li>③临时节点：被创建后与客户端的会话生命周期保持一致，连接断开则自动销毁</li>
+<li>④临时顺序节点：临时节点的有序版本，与其多了一个有序性。分布式锁则依赖这种类型实现</li>
+</ul>
+</li>
+<li>监视器：当zookeeper创建一个节点时，会为该节点注册一个监视器，当节点状态发生改变时，watch会被触发，zooKeeper将会向客户端发送一条通知。不过值得注意的是watch只能被触发一次</li>
+</ul>
+<p>ok~，假设目前<code>8001</code>服务中的线程<code>T1</code>尝试获取锁，那么会<code>T1</code>会在<code>Zookeeper</code>的<code>/locks/distributed_商品ID</code>目录下创建一个临时节点，<code>Zookeeper</code>内部会生成一个名字为<code>xxx....-0000001</code>临时顺序节点。当第二条线程来尝试获取锁时，也会在相同位置创建一个临时顺序节点，名字为<code>xxx....-0000002</code>。值得注意的是最后的数字是一个递增的状态，从1开始自增，Zookeeper会维护这个先后顺序。如下图：<br>
+<img src="https://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/cd362a2cc5d3469d98c70a26aa4c18f1~tplv-k3u1fbpfcp-zoom-in-crop-mark:3024:0:0:0.image?" alt="创建临时节点" loading="lazy"><br>
+当线程创建节点完成后，会查询<code>/locks/distributed_商品ID</code>目录下所有的子节点，然后会判断自己创建的节点是不是在所有节点的第一个，也就是判断自己的节点是否为最小的子节点，如果是的话则获取锁成功，因为当前线程是第一个来获取分布式锁的线程，在它之前是没有线程获取锁的，所以当然可以加锁成功，然后开始执行业务逻辑。如下：<br>
+<img src="https://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/3fde28ce9a384b6fb740ef47ace87e39~tplv-k3u1fbpfcp-zoom-in-crop-mark:3024:0:0:0.image?" alt="8001线程T1获取分布式锁" loading="lazy"><br>
+而第二条线程创建节点成功后，也会去判断自己是否是最小的节点。哦豁！第二条线程判断的时候会发现，在自己的节点之前还有一个<code>xxx...-0001</code>节点，所以代表在自己前面已经有线程持有了分布式锁，所以会对上个节点加上一个监视器，监视上个节点的状态变化。如下：<br>
+<img src="https://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/2adb15356571459686fd2246a427305f~tplv-k3u1fbpfcp-zoom-in-crop-mark:3024:0:0:0.image?" alt="Zookeeper实现分布式公平锁" loading="lazy"><br>
+此时，第一条线程<code>T1</code>执行完了业务代码，准备释放锁，也就是删除自己创建的<code>xxx...-0001</code>临时顺序节点。而第二条线程创建的监视器会监视着前面一个节点的状态，当发现前面的节点已经被删除时，就知道前面一条线程已经执行完了业务，释放了锁资源，所以再次尝试获取锁。如下：<br>
+<img src="https://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/4f317ee163ea4138b66c607d56c5781c~tplv-k3u1fbpfcp-zoom-in-crop-mark:3024:0:0:0.image?" alt="Zookeeper实现分布式锁完整流程" loading="lazy"><br>
+第二条线程重新尝试获取锁时，拿到当前目录下的所有节点判断发现，哟！自己是第一个(最小的那个)节点啊？然后获取锁成功，开始执行业务逻辑，后续再来新的线程则依次类推.....</p>
+<p>至此，整个Zookeeper实现分布式锁的过程分析完毕，关于自己动手基于Zookeeper实现一遍我这边就不再写了，大家可以自习了解。实际开发过程中，<a href="https://curator.apache.org/" title="https://curator.apache.org/">Curator</a>框架自带的分布式锁实现便已经够用了，同时使用也非常的方便。</p>
+<h3 id="分布式锁性能优化">分布式锁性能优化</h3>
+<p>经过前述的分析，大家对分布式锁应该都有一个全面认知了，但是请思考：如果对于类似于抢购、秒杀业务，又该如何处理呢？因为在这种场景下，往往在一段时间内会有大量用户去请求同一个商品。从技术角度出发，这样会导致在同一时间内会有大量的线程去请求同一把锁。这会有何种隐患呢？会出现的问题是：虽然并发能抗住，但是对于用户体验感不好，同时大量的用户点击抢购，但是只能有一个用户抢购成功，明显不合理，这又该如何优化？</p>
+<blockquote>
+<p>参考并发容器中的分段容器，可以将共享资源（商品库存）做提前预热，分段分散到redis中。举个例子：</p>
+<blockquote>
+<p>1000个库存商品，10W个用户等待抢购，抢购开始时间为下午15:00<br>
+提前预热：两点半左右开始将商品数量拆成10份或N份，如：[shopping_01；0-100]、[shopping_02；101-200]、[shopping_03；201-300]、[......]<br>
+也就是往redis中写入十个key，值为100，在抢购时，过来的请求随机分散到某个key上去，但是在扣减库存之前，需要先获取锁，这样就同时有了十把锁，性能自然就上去了。</p>
+</blockquote>
+</blockquote>
+<h3 id="分布式锁总结">分布式锁总结</h3>
+<p>本篇中从<code>单机锁的隐患 -&gt; 分布式架构下的安全问题引出 -&gt; 分布式锁的实现推导 -&gt; redis实现分布式锁 -&gt; redis实现分布式锁的细节问题分析 -&gt; redisson框架实现及其连锁应用与源码分析 -&gt; zookeeper实现分布式锁 -&gt; zookeeper实现原理</code>这条思路依次剖析了分布式锁的前世今生，总的一句话概括分布式锁的核心原理就是：在多个进程中所有线程都可见的区域实现了互斥量而已。</p>
+<p>最后再来说说Redis与Zookeeper实现的区别与项目中如何抉择？</p>
+<blockquote>
+<p>Redis数据不是实时同步的，主机写入成功后会立即返回，存在主从架构锁失效问题。<br>
+Zookeeper数据是实时同步的，主机写入后需一半节点以上写入成功才会返回。<br>
+所以如果你的项目追求高性能，可以放弃一定的稳定性，那么推荐使用Redis实现。比如电商、线上教育等类型的项目。<br>
+但如果你的项目追求高稳定，愿意牺牲一部分性能换取稳定性，那么推荐使用Zookeeper实现。比如金融、银行、政府等类型的项目。</p>
+</blockquote>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li>
+<ul>
+<li><a href="#%E5%89%8D%E8%A8%80">前言</a></li>
+<li><a href="#%E4%BB%80%E4%B9%88%E6%98%AF%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81">什么是分布式锁</a></li>
+<li><a href="#redis%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E6%96%B9%E6%A1%88%E4%B8%80setnx-expire">Redis分布式锁方案一：SETNX + EXPIRE</a></li>
+<li><a href="#redis%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E6%96%B9%E6%A1%88%E4%BA%8Csetnx-value%E5%80%BC%E6%98%AF%E7%B3%BB%E7%BB%9F%E6%97%B6%E9%97%B4%E8%BF%87%E6%9C%9F%E6%97%B6%E9%97%B4">Redis分布式锁方案二：SETNX + value值是(系统时间+过期时间)</a></li>
+<li><a href="#redis%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E6%96%B9%E6%A1%88%E4%B8%89%E4%BD%BF%E7%94%A8lua%E8%84%9A%E6%9C%AC%E5%8C%85%E5%90%ABsetnx-expire%E4%B8%A4%E6%9D%A1%E6%8C%87%E4%BB%A4">Redis分布式锁方案三：使用Lua脚本(包含SETNX + EXPIRE两条指令)</a></li>
+<li><a href="#redis%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E6%96%B9%E6%A1%88%E6%96%B9%E6%A1%88%E5%9B%9Bset%E7%9A%84%E6%89%A9%E5%B1%95%E5%91%BD%E4%BB%A4set-ex-px-nx">Redis分布式锁方案方案四：SET的扩展命令（SET EX PX NX）</a></li>
+<li><a href="#%E6%96%B9%E6%A1%88%E4%BA%94set-ex-px-nx-%E6%A0%A1%E9%AA%8C%E5%94%AF%E4%B8%80%E9%9A%8F%E6%9C%BA%E5%80%BC%E5%86%8D%E5%88%A0%E9%99%A4">方案五：SET EX PX NX + 校验唯一随机值,再删除</a></li>
+<li><a href="#redis%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E6%96%B9%E6%A1%88%E5%85%ADredisson%E6%A1%86%E6%9E%B6">Redis分布式锁方案六：Redisson框架</a></li>
+<li><a href="#redis%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E6%96%B9%E6%A1%88%E4%B8%83%E5%A4%9A%E6%9C%BA%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81redlockredisson">Redis分布式锁方案七：多机实现的分布式锁Redlock+Redisson</a></li>
+<li><a href="#%E5%85%AC%E4%BC%97%E5%8F%B7">公众号</a></li>
+<li><a href="#%E5%8F%82%E8%80%83%E4%B8%8E%E6%84%9F%E8%B0%A2">参考与感谢</a></li>
+<li><a href="#%E8%A7%A3%E5%86%B3redis%E4%B8%BB%E4%BB%8E%E6%9E%B6%E6%9E%84%E5%AF%BC%E8%87%B4%E7%9A%84%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%A4%B1%E6%95%88%E9%97%AE%E9%A2%98">解决Redis主从架构导致的分布式锁失效问题</a></li>
+<li><a href="#redisson%E6%A1%86%E6%9E%B6%E4%B8%AD%E7%9A%84%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81">Redisson框架中的分布式锁</a></li>
+<li><a href="#redisson%E6%A1%86%E6%9E%B6%E4%B8%AD%E7%9A%84%E8%BF%9E%E9%94%81%E5%88%86%E6%9E%90">Redisson框架中的连锁分析</a></li>
+<li><a href="#redisson%E6%A1%86%E6%9E%B6%E4%B8%AD%E7%9A%84%E8%BF%9E%E9%94%81%E6%BA%90%E7%A0%81%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90">Redisson框架中的连锁源码实现分析</a></li>
+<li><a href="#zookeeper%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%89%96%E6%9E%90">Zookeeper实现分布式锁剖析</a></li>
+<li><a href="#%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96">分布式锁性能优化</a></li>
+<li><a href="#%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E6%80%BB%E7%BB%93">分布式锁总结</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://MouseHappy123.github.io/post/chang-yong-ming-ling-ji-cao-zuo/">
+              <h3 class="post-title">
+                常用命令及操作
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://MouseHappy123.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>
